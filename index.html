@@ -1,0 +1,1290 @@
+<!doctype html>
+<!--
+================================================================================
+THE LEAGUE — a browser game about running a university
+Single standalone file: no external libraries, no network calls, no build step.
+================================================================================
+
+CALIBRATION HARNESS REPORT (generated headlessly before the UI was built)
+Seeds: 1..500. Player: Greyfriars College (initial rank 4, worst).
+Scripted strategies as implemented in the harness (dev/strategies.js):
+  naive    - static mid fees/thresholds, spreads 60% of funds evenly
+  sensible - adapts fees/thresholds to demand, maintains vs decay
+  sharp    - prices the captive segment, farms the intake->teaching
+             loop, forecasts offer yield from league position,
+             rations admission once on top, spends late reserves
+
+strategy  | meanScore | rank1  rank2  rank3  rank4 | score=3 | score>=1 | score<=0 | bankrupt
+naive     |      0.04 |   0.0%   0.0%   4.0%  96.0% |    0.0% |     4.0% |    96.0% |     0.0%
+sensible  |      0.77 |   5.6%   1.8%  56.8%  35.8% |    5.6% |    64.2% |    35.8% |     2.6%
+sharp     |      2.15 |  57.4%   3.2%  36.4%   3.0% |   57.4% |    97.0% |     3.0% |     3.2%
+
+Calibration targets (all met):
+  - Sharp reaches score 3 (worst -> best) in a healthy share of seeds (~1/3+)
+  - Sensible typically improves rank, rarely reaches the top
+  - Naive stagnates or declines
+  - Bankruptcy possible but rare under Sensible play
+
+FULL PARAMETER SET (also live in DEFAULT_PARAMS below):
+{
+  "rounds": 20,
+  "nApplicants": 40,
+  "capacity": 8,
+  "cOver": 24,
+  "interest": 0.05,
+  "delta": 0.85,
+  "gamma": 1.5,
+  "kappa": 0.14,
+  "sMean": 60,
+  "sSd": 13,
+  "sClampLo": 20,
+  "sClampHi": 100,
+  "bBase": 10,
+  "bSlope": 0.12,
+  "bNoise": 2.6,
+  "bMin": 3,
+  "bMax": 22,
+  "thetaMin": 0,
+  "thetaMax": 1.2,
+  "pStemStart": 0.5,
+  "pStemEta": 0.02,
+  "pStemScale": 10,
+  "pStemMin": 0.3,
+  "pStemMax": 0.7,
+  "aiPrestigeCap": 32,
+  "aiCashHi": 16,
+  "aiCashLo": 11,
+  "unis": [
+    {
+      "name": "Harkness University",
+      "personality": "balanced",
+      "E": 120,
+      "RS": 31,
+      "TS": 30,
+      "RH": 28,
+      "TH": 29
+    },
+    {
+      "name": "Wexford Institute",
+      "personality": "prestige",
+      "E": 100,
+      "RS": 36,
+      "TS": 20,
+      "RH": 28,
+      "TH": 17
+    },
+    {
+      "name": "Millbrook Metropolitan",
+      "personality": "cashcow",
+      "E": 95,
+      "RS": 18,
+      "TS": 24,
+      "RH": 16,
+      "TH": 25
+    },
+    {
+      "name": "Greyfriars College",
+      "personality": "cashcow",
+      "E": 85,
+      "RS": 13,
+      "TS": 16,
+      "RH": 11,
+      "TH": 15
+    }
+  ]
+}
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>THE LEAGUE — a game of university governance</title>
+<style>
+/* THE LEAGUE — The Morning Ledger house style */
+:root {
+  --paper: #f7f2e6;
+  --paper-2: #f0e8d5;
+  --paper-3: #e9dfc8;
+  --ink: #221d16;
+  --faint: #6f6553;
+  --rule: #cfc3a8;
+  --rule-dark: #221d16;
+  --oxblood: #7c2a1e;
+  --navy: #2b3d54;
+  --moss: #4a5d3a;
+  --hl: #f4ead0;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  line-height: 1.45;
+  font-size: 16px;
+  background-image: radial-gradient(ellipse at 50% -20%, rgba(255,255,255,.5), rgba(0,0,0,0) 60%);
+}
+#app { max-width: 1040px; margin: 0 auto; padding: 14px 14px 60px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---- Masthead ---- */
+.masthead { text-align: center; padding: 18px 0 10px; border-bottom: 4px double var(--rule-dark); margin-bottom: 4px; }
+.masthead .paper-name { font-size: 13px; letter-spacing: .34em; text-transform: uppercase; color: var(--faint); }
+.masthead h1 { font-size: clamp(40px, 8vw, 66px); font-weight: 900; letter-spacing: .04em; line-height: 1.02; margin: 2px 0; }
+.masthead .standfirst { font-style: italic; color: var(--faint); font-size: 15px; }
+.masthead.compact { padding: 8px 0 6px; }
+.masthead.compact h1 { font-size: 30px; }
+.masthead.compact .paper-name { font-size: 10px; }
+.masthead.compact .standfirst { display: none; }
+.scrollx { overflow-x: auto; }
+.dateline { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; text-transform: uppercase; letter-spacing: .14em; color: var(--faint); border-bottom: 1px solid var(--rule-dark); padding: 6px 2px; margin-bottom: 18px; flex-wrap: wrap; gap: 4px 14px; }
+.dateline .resign { color: var(--oxblood); cursor: pointer; text-decoration: underline; background: none; border: none; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+
+/* ---- Layout ---- */
+.cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; align-items: start; }
+.cols.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 780px) { .cols, .cols.even { grid-template-columns: 1fr; } }
+.stack > * + * { margin-top: 18px; }
+
+/* ---- Cards ---- */
+.card { border: 1px solid var(--rule-dark); background: var(--paper-2); box-shadow: 3px 3px 0 rgba(34,29,22,.12); }
+.card .card-head { padding: 8px 14px; border-bottom: 1px solid var(--rule-dark); font-size: 12.5px; text-transform: uppercase; letter-spacing: .18em; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card .card-body { padding: 12px 14px 14px; }
+.card-head .kicker { color: var(--faint); letter-spacing: .1em; }
+.card.admissions .card-head { background: var(--oxblood); color: var(--paper); border-bottom-color: var(--rule-dark); }
+.card.bursar .card-head { background: var(--navy); color: var(--paper); }
+.card.plain .card-head { background: var(--paper-3); }
+
+/* ---- League table ---- */
+table.league { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+table.league caption { caption-side: top; text-align: left; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); padding: 2px 0 6px; }
+table.league th { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); font-weight: normal; text-align: right; padding: 4px 6px; border-bottom: 2px solid var(--rule-dark); }
+table.league th:nth-child(2) { text-align: left; }
+table.league td { padding: 7px 6px; border-bottom: 1px solid var(--rule); text-align: right; }
+table.league td.uname { text-align: left; }
+table.league tr.me { background: var(--hl); outline: 2px solid var(--oxblood); outline-offset: -2px; }
+table.league td.rank { font-size: 19px; font-weight: 700; width: 34px; }
+table.league .total { font-weight: 700; }
+table.league .delta { font-size: 12px; width: 20px; padding-left: 0; }
+.delta.up { color: var(--moss); } .delta.down { color: var(--oxblood); }
+table.league tr.broke td { color: var(--faint); text-decoration: line-through; }
+.tbl-foot { font-size: 12px; color: var(--faint); font-style: italic; margin-top: 6px; }
+
+/* ---- Stats & dashboard ---- */
+.statline { display: flex; flex-wrap: wrap; gap: 6px 22px; }
+.stat .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: var(--faint); display: block; }
+.stat .val { font-size: 20px; font-weight: 700; }
+.qual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; margin-top: 8px; }
+.qbar { position: relative; height: 7px; background: var(--paper-3); border: 1px solid var(--rule); margin-top: 3px; }
+.qbar i { position: absolute; inset: 0 auto 0 0; background: var(--navy); display: block; }
+.qbar.research i { background: var(--oxblood); }
+.qrow .lbl { font-size: 11.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); display: flex; justify-content: space-between; }
+
+/* ---- Field panels (admissions) ---- */
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .fields { grid-template-columns: 1fr; } }
+.fieldbox { border: 1px solid var(--rule-dark); background: var(--paper); padding: 10px 12px 12px; }
+.fieldbox h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .16em; border-bottom: 1px solid var(--rule); padding-bottom: 5px; margin-bottom: 8px; }
+.ctl { margin: 8px 0; }
+.ctl .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); display: block; margin-bottom: 3px; }
+.stepper { display: flex; align-items: stretch; border: 1px solid var(--rule-dark); background: var(--paper-2); }
+.stepper button { flex: 0 0 40px; border: none; background: var(--paper-3); font: inherit; font-size: 19px; cursor: pointer; color: var(--ink); border-right: 1px solid var(--rule); min-height: 40px; }
+.stepper button:last-child { border-right: none; border-left: 1px solid var(--rule); }
+.stepper button:active { background: var(--rule); }
+.stepper .val { flex: 1; text-align: center; font-size: 18px; font-weight: 700; align-self: center; }
+.demandline { font-size: 12.5px; color: var(--faint); margin-top: 8px; border-top: 1px dotted var(--rule); padding-top: 6px; }
+.notice { font-size: 12.5px; font-style: italic; color: var(--faint); margin-top: 10px; }
+.notice.warn { color: var(--oxblood); font-style: normal; }
+
+/* ---- Buttons ---- */
+.btn { display: inline-block; border: 1px solid var(--rule-dark); background: var(--ink); color: var(--paper); font: inherit; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; padding: 11px 20px; cursor: pointer; box-shadow: 3px 3px 0 rgba(34,29,22,.25); width: 100%; margin-top: 12px; }
+.btn:hover { background: #3a3227; }
+.btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 rgba(34,29,22,.25); }
+.btn:disabled { background: var(--faint); cursor: not-allowed; opacity: .6; }
+.btn.oxblood { background: var(--oxblood); }
+.btn.navy { background: var(--navy); }
+.btn-ghost { background: none; border: 1px solid var(--rule-dark); color: var(--ink); font: inherit; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; padding: 6px 10px; cursor: pointer; }
+.btn-ghost:hover { background: var(--paper-3); }
+
+/* ---- Report ---- */
+table.report { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 340px; }
+table.report th { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); font-weight: normal; text-align: right; border-bottom: 2px solid var(--rule-dark); padding: 4px 6px; }
+table.report th:first-child { text-align: left; }
+table.report td { text-align: right; padding: 6px; border-bottom: 1px solid var(--rule); }
+table.report td:first-child { text-align: left; }
+table.report tr.sumrow td { font-weight: 700; border-top: 2px solid var(--rule-dark); border-bottom: none; }
+.red { color: var(--oxblood); }
+.green { color: var(--moss); }
+
+/* ---- Bursar ---- */
+.invrow { display: grid; grid-template-columns: 128px 1fr 120px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px dotted var(--rule); }
+@media (max-width: 560px) { .invrow { grid-template-columns: 90px 1fr 104px; } }
+.invrow .lbl { font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.invrow .lbl b { display: block; color: var(--ink); font-size: 13px; }
+.invrow input[type=range] { width: 100%; accent-color: var(--navy); min-height: 28px; }
+.invrow .out { font-size: 13px; text-align: right; }
+.invrow .out b { font-size: 15px; }
+.invrow .proj { display: block; font-size: 11.5px; color: var(--faint); }
+.budgetline { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; font-size: 14px; }
+.budgetline b { font-size: 19px; }
+.presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+/* ---- Title screen ---- */
+.prospect { border: 1px solid var(--rule-dark); background: var(--paper-2); margin-top: 14px; box-shadow: 3px 3px 0 rgba(34,29,22,.12); }
+.prospect .row { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 13px 14px; border-bottom: 1px solid var(--rule); }
+.prospect .row:last-child { border-bottom: none; }
+.prospect .rank { font-size: 26px; font-weight: 900; text-align: center; }
+.prospect .uni b { font-size: 17px; }
+.prospect .uni .epithet { font-style: italic; color: var(--faint); font-size: 13.5px; }
+.prospect .uni .scores { font-size: 12px; color: var(--faint); letter-spacing: .04em; }
+.prospect .pick { text-align: right; }
+.prospect .maxnote { display: block; font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: .1em; margin-top: 4px; }
+.prospect .row.featured { background: var(--hl); }
+.prospect .row.featured .maxnote { color: var(--oxblood); font-weight: 700; }
+.leader { column-count: 2; column-gap: 26px; margin: 16px 0; font-size: 15px; text-align: justify; }
+@media (max-width: 680px) { .leader { column-count: 1; } }
+.leader p + p { margin-top: 8px; }
+.leader .dropcap::first-letter { font-size: 46px; float: left; line-height: .85; padding: 3px 6px 0 0; font-weight: 700; }
+.seedline { margin-top: 14px; font-size: 13px; color: var(--faint); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.seedline input { font: inherit; font-size: 13px; border: 1px solid var(--rule-dark); background: var(--paper); padding: 4px 8px; width: 130px; }
+details.rules { margin-top: 16px; border: 1px solid var(--rule); background: var(--paper-2); }
+details.rules summary { cursor: pointer; padding: 9px 14px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .16em; }
+details.rules .card-body { border-top: 1px solid var(--rule); font-size: 14px; }
+details.rules ul { padding-left: 20px; }
+details.rules li { margin: 5px 0; }
+
+/* ---- End screen ---- */
+.endcard { text-align: center; padding: 26px 16px; }
+.endcard .verdict { font-size: 13px; text-transform: uppercase; letter-spacing: .3em; color: var(--faint); }
+.endcard h2 { font-size: clamp(28px, 6vw, 44px); margin: 8px 0 2px; }
+.endcard .scoreline { font-size: 19px; margin: 10px 0 4px; }
+.endcard .scoreline b { font-size: 34px; }
+.chartwrap { margin: 18px auto 6px; max-width: 640px; overflow-x: auto; }
+.chartwrap svg { width: 100%; height: auto; display: block; }
+.chart-caption { font-size: 12px; color: var(--faint); font-style: italic; }
+.fade { animation: fadein .45s ease-out; }
+@keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.phase-strip { display: flex; gap: 0; margin-bottom: 14px; border: 1px solid var(--rule-dark); }
+.phase-strip .ph { flex: 1; text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: .16em; padding: 7px 4px; color: var(--faint); background: var(--paper-2); }
+.phase-strip .ph.on { background: var(--ink); color: var(--paper); }
+.footer-note { text-align: center; font-size: 11.5px; color: var(--faint); margin-top: 34px; border-top: 1px solid var(--rule); padding-top: 8px; }
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+/* ============================================================================
+ * THE LEAGUE — headless game engine
+ * ----------------------------------------------------------------------------
+ * Pure, deterministic (seeded) engine. No DOM, no Date, no Math.random.
+ * Used verbatim by both the Node calibration harness and the browser UI.
+ *
+ * DOCUMENTED MODELLING CHOICES
+ * ----------------------------
+ * Applicant distribution (drawn jointly, per applicant):
+ *   - school score s ~ Normal(sMean, sSd), clamped to [sClampLo, sClampHi].
+ *   - budget b = bBase + bSlope*(s - sMean) + Normal(0, bNoise), clamped to
+ *     [bMin, bMax]. bSlope > 0 gives the mild positive score/budget
+ *     correlation required by the spec (richer students score a bit higher).
+ *   - taste weight theta ~ Uniform(thetaMin, thetaMax); student values a
+ *     university at T_f + theta * R_f for their preferred field f.
+ *   - field preference: STEM with probability pStem (see drift below).
+ *
+ * Field-preference drift (endogenous, from round 2 onward):
+ *   pStem <- clamp(pStem + pStemEta * tanh((avgR_S - avgR_H) / pStemScale),
+ *                  pStemMin, pStemMax)
+ *   where avgR_S / avgR_H are the mean STEM / HSS research qualities across
+ *   all four universities at the start of the round. Gentle (eta small) and
+ *   bounded away from 0 and 1 by the clamp.
+ *
+ * Investment response: g(I) = gamma * sqrt(I)  (concave, diminishing returns).
+ *
+ * Quality dynamics (per field, applied at end of round):
+ *   R' = delta * R + g(I_R)
+ *   T' = delta * T + g(I_T) + kappa * (sbarDept - sMean)   [intake term only
+ *        if the department admitted >= 1 student this round]
+ *   Qualities are floored at 0.
+ *
+ * Ledger (canonical): E_{t+1} = (E_t + F_t - C_t - I_t) * (1 + r).
+ * Bankruptcy: if E_t + F_t - C_t < 0 after market clearing, the university is
+ * broke. Player broke => game over immediately. Broke AI (documented choice:
+ * the simple option): it stops admitting (makes no offers) and invests
+ * nothing; its endowment is frozen where it fell and its qualities keep
+ * decaying at delta.
+ *
+ * Final ranking: the league table computed AFTER round `rounds` quality
+ * update (i.e. the table that would open round 21). This means round-20
+ * investment still counts, avoiding a degenerate "hoard in the last round"
+ * strategy. Score = initial rank - final rank.
+ * ========================================================================= */
+
+/* ----------------------------- Seeded RNG ------------------------------- */
+function hashStringToInt(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function makeRng(seed) {
+  let a = (typeof seed === 'string' ? hashStringToInt(seed) : (seed >>> 0)) || 1;
+  return function rng() {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function gauss(rng) {
+  let u = 0, v = 0;
+  while (u === 0) u = rng();
+  while (v === 0) v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+
+/* ----------------------------- Parameters ------------------------------- */
+const DEFAULT_PARAMS = {
+  rounds: 20,
+  nApplicants: 40,
+  capacity: 8,          // per department per round, zero marginal cost
+  cOver: 24,            // per-head overage penalty above capacity
+  interest: 0.05,       // r: interest on funds unspent after investment
+  delta: 0.85,          // quality decay factor
+  gamma: 1.5,           // g(I) = gamma * sqrt(I)
+  kappa: 0.14,          // intake-quality effect on teaching
+
+  // Applicant score distribution
+  sMean: 60, sSd: 13, sClampLo: 20, sClampHi: 100,
+  // Budgets (mildly correlated with score via bSlope)
+  bBase: 10, bSlope: 0.12, bNoise: 2.6, bMin: 3, bMax: 22,
+  // Taste for research
+  thetaMin: 0, thetaMax: 1.2,
+  // STEM preference drift
+  pStemStart: 0.5, pStemEta: 0.02, pStemScale: 10, pStemMin: 0.3, pStemMax: 0.7,
+
+  // AI spending discipline (per-round investment budget caps)
+  aiPrestigeCap: 32,  // prestige chaser's institutional plan ceiling
+  aiCashHi: 16,       // cash cow's upkeep ceiling
+  aiCashLo: 11,       // cash cow's upkeep floor (drawn from hoard)
+
+  // Starting universities, ordered by index (initial league rank order).
+  // Each has a native AI personality used whenever the player doesn't run it.
+  unis: [
+    { name: 'Harkness University',    personality: 'balanced', E: 120, RS: 31, TS: 30, RH: 28, TH: 29 },
+    { name: 'Wexford Institute',      personality: 'prestige', E: 100, RS: 36, TS: 20, RH: 28, TH: 17 },
+    { name: 'Millbrook Metropolitan', personality: 'cashcow',  E: 95,  RS: 18, TS: 24, RH: 16, TH: 25 },
+    { name: 'Greyfriars College',     personality: 'cashcow',  E: 85,  RS: 13, TS: 16, RH: 11, TH: 15 },
+  ],
+};
+
+/* ------------------------- AI opponent heuristics ------------------------
+ * All AIs obey the same rules as the player: same capacity, overage cost,
+ * decay, investment technology; they see only the public league table, the
+ * public cohort statistics, and their own private state/history. They never
+ * see the player's current-round choices or the applicant realizations.
+ *
+ * Personality assignment: the three non-player universities, ordered by
+ * initial league position (best first), get: Balanced Incumbent, Prestige
+ * Chaser, Cash Cow.
+ * ------------------------------------------------------------------------ */
+
+// Maintenance investment that offsets decay for quality Q: g(I) = (1-d)Q.
+function maintInvest(Q, P) {
+  const need = (1 - P.delta) * Q / P.gamma;
+  return need * need;
+}
+
+/* The Prestige Chaser: overweights research investment, high fees, high
+ * thresholds. Adapts gradually: raises fees when demand is strong, trims
+ * fees/thresholds when enrolment collapses. Exploitable: its high prices and
+ * standards leave the low end of the market uncontested, and it habitually
+ * underfunds teaching, so its student appeal erodes. */
+function aiPrestige(P) {
+  return {
+    init(uni) {
+      uni.ai = { fee: { S: 12, H: 12 }, thr: { S: 64, H: 64 } };
+    },
+    admissions(uni) {
+      const a = uni.ai, last = uni.lastReport;
+      for (const f of ['S', 'H']) {
+        if (last) {
+          const d = last[f];
+          if (d.matric > P.capacity) { a.fee[f] += 1.0; a.thr[f] += 1; }
+          else if (d.matric >= 6) a.fee[f] += 0.5;
+          else if (d.matric <= 1) { a.fee[f] -= 1.5; a.thr[f] -= 2; } // starving: correct hard
+          else if (d.matric <= 3) { a.fee[f] -= 0.75; a.thr[f] -= 1; }
+          else if (d.matric >= 4) a.thr[f] += 0.5; // creeping standards
+        }
+        a.fee[f] = clamp(a.fee[f], 8, 20);
+        a.thr[f] = clamp(a.thr[f], 56, 78);
+      }
+      return { feeS: a.fee.S, thrS: a.thr.S, feeH: a.fee.H, thrH: a.thr.H };
+    },
+    // Spends aggressively, tying investment to income flow plus a draw on
+    // savings; overweights research, but rescues teaching when its student
+    // appeal is visibly collapsing (else it death-spirals).
+    spend(uni, net, P2, rep) {
+      const investable = Math.max(0, net - 15);
+      // Bounded ambition: even flush with cash it won't spend beyond its
+      // institutional plan (~48/round) — the headroom a challenger needs.
+      const budget = Math.min(investable, 1.2 * rep.F + 0.15 * Math.max(0, uni.E), P2.aiPrestigeCap);
+      const teachShare = (uni.TS + uni.TH) < 0.75 * (uni.RS + uni.RH) ? 0.55 : 0.35;
+      const tea = budget * teachShare, res = budget - tea;
+      return { IRS: res / 2, IRH: res / 2, ITS: tea / 2, ITH: tea / 2 };
+    },
+  };
+}
+
+/* The Cash Cow: low fees, low thresholds, volume strategy, conservative
+ * investment. Adapts: raises thresholds/fees when oversubscribed (overage is
+ * expensive), lowers fees when halls are empty. Exploitable: chronic
+ * underinvestment means its qualities decay, and its low fees can be
+ * undercut for the budget segment. */
+function aiCashCow(P) {
+  return {
+    init(uni) {
+      uni.ai = { fee: { S: 6.5, H: 6.5 }, thr: { S: 45, H: 45 } };
+    },
+    admissions(uni) {
+      const a = uni.ai, last = uni.lastReport;
+      for (const f of ['S', 'H']) {
+        if (last) {
+          const d = last[f];
+          if (d.matric > P.capacity + 2) { a.thr[f] += 2; a.fee[f] += 0.5; }
+          else if (d.matric > P.capacity) a.fee[f] += 0.5;
+          else if (d.matric < 5) a.fee[f] -= 0.5;
+          if (d.matric < 2) a.thr[f] -= 1.5;
+        }
+        a.fee[f] = clamp(a.fee[f], 5.5, 12);
+        a.thr[f] = clamp(a.thr[f], 35, 60);
+      }
+      return { feeS: a.fee.S, thrS: a.thr.S, feeH: a.fee.H, thrH: a.thr.H };
+    },
+    // Truly conservative: a modest upkeep budget — 35% of fee income, with
+    // a small floor drawn from its hoard when income dips and a hard cap of
+    // 34 a round — evenly spread; profits are hoarded. Its qualities
+    // therefore plateau in the high 80s — the exploitable seam.
+    spend(uni, net, P2, rep) {
+      const investable = Math.max(0, net - 15);
+      const budget = Math.min(investable, Math.max(0.35 * rep.F, P2.aiCashLo), P2.aiCashHi);
+      const each = budget / 4;
+      return { IRS: each, ITS: each, IRH: each, ITH: each };
+    },
+  };
+}
+
+/* The Balanced Incumbent: maintains all four qualities against decay, then
+ * spreads a share of the surplus; nudges each field's fee in whichever
+ * direction improved that field's revenue last round (with safety overrides
+ * for over/under-subscription). Exploitable: it defends but rarely grows, so
+ * a compounding challenger can walk it down. */
+function aiBalanced(P) {
+  return {
+    init(uni) {
+      uni.ai = {
+        fee: { S: 11, H: 11 }, thr: { S: 58, H: 58 },
+        lastRev: { S: null, H: null }, lastDir: { S: 1, H: 1 },
+        // "Roughly maintains all four qualities": steers each quality toward
+        // a fixed target a shade above its starting level, rather than
+        // compounding its endowment into unbounded growth.
+        target: { RS: uni.RS * 1.02, TS: uni.TS * 1.02, RH: uni.RH * 1.02, TH: uni.TH * 1.02 },
+      };
+    },
+    admissions(uni) {
+      const a = uni.ai, last = uni.lastReport;
+      for (const f of ['S', 'H']) {
+        if (last) {
+          const d = last[f];
+          const rev = d.income - d.overage;
+          if (a.lastRev[f] !== null) {
+            if (rev < a.lastRev[f]) a.lastDir[f] = -a.lastDir[f];
+          }
+          a.lastRev[f] = rev;
+          a.fee[f] += 0.5 * a.lastDir[f];
+          if (d.matric > P.capacity) { a.fee[f] += 0.5; a.thr[f] += 1; }
+          else if (d.matric < 3) { a.fee[f] -= 1.0; a.thr[f] -= 1; }
+          else if (d.matric >= 6) a.thr[f] += 0.5;
+        }
+        a.fee[f] = clamp(a.fee[f], 6, 16);
+        a.thr[f] = clamp(a.thr[f], 50, 70);
+      }
+      return { feeS: a.fee.S, thrS: a.thr.S, feeH: a.fee.H, thrH: a.thr.H };
+    },
+    // Invest exactly enough to steer each quality toward its fixed target
+    // (delta*Q + g(I) = target  =>  I = ((target - delta*Q)/gamma)^2),
+    // scaled down if funds are short. Surplus endowment simply sits at
+    // interest — the complacency a sharp challenger can exploit.
+    spend(uni, net, P2) {
+      const avail = Math.max(0, net - 20);
+      const tgt = uni.ai.target;
+      const toward = (Q, T) => {
+        const need = (T - P2.delta * Q) / P2.gamma;
+        return need > 0 ? need * need : 0;
+      };
+      const want = {
+        IRS: toward(uni.RS, tgt.RS), ITS: toward(uni.TS, tgt.TS),
+        IRH: toward(uni.RH, tgt.RH), ITH: toward(uni.TH, tgt.TH),
+      };
+      const tot = want.IRS + want.ITS + want.IRH + want.ITH;
+      if (tot > avail && tot > 0) {
+        const k = avail / tot;
+        for (const q in want) want[q] *= k;
+      }
+      return want;
+    },
+  };
+}
+
+const AI_FACTORIES = { balanced: aiBalanced, prestige: aiPrestige, cashcow: aiCashCow };
+
+/* ------------------------------ Game class ------------------------------ */
+class Game {
+  /**
+   * opts: { seed, playerIndex (default 3), params (partial override) }
+   */
+  constructor(opts = {}) {
+    const P = this.P = Object.assign({}, DEFAULT_PARAMS, opts.params || {});
+    if (opts.params && opts.params.unis) P.unis = opts.params.unis;
+    this.seed = opts.seed === undefined ? 1 : opts.seed;
+    this.rng = makeRng(this.seed);
+    this.playerIndex = opts.playerIndex === undefined ? 3 : opts.playerIndex;
+
+    this.unis = P.unis.map((u, i) => ({
+      index: i, name: u.name,
+      E: u.E, RS: u.RS, TS: u.TS, RH: u.RH, TH: u.TH,
+      broke: false, lastReport: null, ai: null, controller: null,
+    }));
+
+    // Every university the player doesn't govern runs its native personality.
+    for (const uni of this.unis) {
+      if (uni.index === this.playerIndex) continue;
+      const kind = P.unis[uni.index].personality;
+      uni.controller = AI_FACTORIES[kind](P);
+      uni.personality = kind;
+      uni.controller.init(uni);
+    }
+
+    this.round = 0;
+    this.pStem = P.pStemStart;
+    this.phase = 'pre'; // pre -> admissions -> spend -> (admissions|over|bankrupt)
+    this.initialRank = this.rankOf(this.playerIndex);
+    this.rankHistory = [this.initialRank]; // rank at start of each round; last entry = final
+    this.roundLog = [];
+    this.applicants = null;
+    this._reports = null;
+  }
+
+  /* League table: rank by descending quality sum; ties by endowment (higher
+   * first), then by fixed index. Endowments are NOT exposed in the table. */
+  leagueTable() {
+    const rows = this.unis.map(u => ({
+      index: u.index, name: u.name,
+      RS: u.RS, TS: u.TS, RH: u.RH, TH: u.TH,
+      total: u.RS + u.TS + u.RH + u.TH,
+      broke: u.broke,
+      _E: u.E,
+    }));
+    rows.sort((a, b) => (b.total - a.total) || (b._E - a._E) || (a.index - b.index));
+    rows.forEach((r, i) => { r.rank = i + 1; delete r._E; });
+    return rows;
+  }
+  rankOf(idx) { return this.leagueTable().find(r => r.index === idx).rank; }
+
+  /* Begin a round: update field-preference drift, draw the fresh cohort,
+   * publish the league table and cohort statistics. */
+  startRound() {
+    if (this.phase !== 'pre' && this.phase !== 'between') throw new Error('bad phase ' + this.phase);
+    const P = this.P;
+    this.round++;
+    if (this.round >= 2) {
+      let rs = 0, rh = 0;
+      for (const u of this.unis) { rs += u.RS; rh += u.RH; }
+      this.pStem = clamp(
+        this.pStem + P.pStemEta * Math.tanh((rs / 4 - rh / 4) / P.pStemScale),
+        P.pStemMin, P.pStemMax);
+    }
+    // Draw 40 fresh applicants (students last exactly one round).
+    const apps = [];
+    for (let i = 0; i < P.nApplicants; i++) {
+      const s = clamp(P.sMean + P.sSd * gauss(this.rng), P.sClampLo, P.sClampHi);
+      const b = clamp(P.bBase + P.bSlope * (s - P.sMean) + P.bNoise * gauss(this.rng), P.bMin, P.bMax);
+      const theta = P.thetaMin + (P.thetaMax - P.thetaMin) * this.rng();
+      const f = this.rng() < this.pStem ? 'S' : 'H';
+      apps.push({ s, b, theta, f });
+    }
+    this.applicants = apps;
+    const scores = apps.map(a => a.s).sort((x, y) => x - y);
+    const n = scores.length;
+    const median = n % 2 ? scores[(n - 1) / 2] : (scores[n / 2 - 1] + scores[n / 2]) / 2;
+    const mean = scores.reduce((a, b) => a + b, 0) / n;
+    const pctStem = 100 * apps.filter(a => a.f === 'S').length / n;
+    this.cohortStats = { median, mean, pctStem };
+    const table = this.leagueTable();
+    if (this.round > 1) this.rankHistory.push(table.find(r => r.index === this.playerIndex).rank);
+    this.phase = 'admissions';
+    return { round: this.round, table, cohortStats: this.cohortStats };
+  }
+
+  /* Step 1 — Admissions. The player's {feeS, thrS, feeH, thrH} plus each
+   * AI's simultaneous choice; then automatic market clearing. */
+  submitAdmissions(playerDec) {
+    if (this.phase !== 'admissions') throw new Error('bad phase ' + this.phase);
+    const P = this.P;
+    const decisions = new Array(this.unis.length);
+    for (const u of this.unis) {
+      if (u.broke) { decisions[u.index] = null; continue; } // broke: stops admitting
+      decisions[u.index] = (u.index === this.playerIndex)
+        ? {
+            feeS: Math.max(0, +playerDec.feeS || 0), thrS: +playerDec.thrS || 0,
+            feeH: Math.max(0, +playerDec.feeH || 0), thrH: +playerDec.thrH || 0,
+          }
+        : u.controller.admissions(u);
+    }
+    this._decisions = decisions;
+
+    // Market clearing.
+    const reports = this.unis.map(() => ({
+      S: { applied: 0, offers: 0, matric: 0, income: 0, overage: 0, sSum: 0, sbar: null },
+      H: { applied: 0, offers: 0, matric: 0, income: 0, overage: 0, sSum: 0, sbar: null },
+    }));
+    for (const a of this.applicants) {
+      const f = a.f;
+      const offers = [];
+      for (const u of this.unis) {
+        const d = decisions[u.index];
+        if (!d) continue;
+        const fee = f === 'S' ? d.feeS : d.feeH;
+        const thr = f === 'S' ? d.thrS : d.thrH;
+        if (fee <= a.b) {
+          reports[u.index][f].applied++;
+          if (a.s >= thr) { reports[u.index][f].offers++; offers.push(u); }
+        }
+      }
+      if (!offers.length) continue; // exits, no consequence
+      let best = [], bestV = -Infinity;
+      for (const u of offers) {
+        const v = (f === 'S' ? u.TS + a.theta * u.RS : u.TH + a.theta * u.RH);
+        if (v > bestV + 1e-12) { bestV = v; best = [u]; }
+        else if (Math.abs(v - bestV) <= 1e-12) best.push(u);
+      }
+      const chosen = best[Math.floor(this.rng() * best.length)];
+      const r = reports[chosen.index][f];
+      r.matric++;
+      r.sSum += a.s;
+      r.income += (f === 'S' ? decisions[chosen.index].feeS : decisions[chosen.index].feeH);
+    }
+    for (const u of this.unis) {
+      for (const f of ['S', 'H']) {
+        const r = reports[u.index][f];
+        r.overage = Math.max(0, r.matric - P.capacity) * P.cOver;
+        r.sbar = r.matric > 0 ? r.sSum / r.matric : null;
+        delete r.sSum;
+      }
+      const rep = reports[u.index];
+      rep.F = rep.S.income + rep.H.income;
+      rep.C = rep.S.overage + rep.H.overage;
+      rep.net = u.E + rep.F - rep.C; // funds available for investment
+    }
+    this._reports = reports;
+
+    // Bankruptcy check (after clearing, before spending).
+    for (const u of this.unis) {
+      if (!u.broke && reports[u.index].net < 0) {
+        u.broke = true;
+        // Broke AI: endowment frozen where it fell; stops admitting; invests 0.
+        u.E = reports[u.index].net;
+        if (u.index === this.playerIndex) {
+          this.phase = 'bankrupt';
+          this.finalRank = this.rankOf(this.playerIndex);
+          this.score = this.initialRank - this.finalRank;
+          this.bankrupt = true;
+        }
+      }
+    }
+    const playerRep = reports[this.playerIndex];
+    if (this.phase !== 'bankrupt') this.phase = 'spend';
+    return {
+      bankrupt: this.phase === 'bankrupt',
+      S: playerRep.S, H: playerRep.H,
+      F: playerRep.F, C: playerRep.C, net: playerRep.net,
+    };
+  }
+
+  /* Step 2 — Spending. Player investments {IRS, ITS, IRH, ITH}; AIs choose
+   * theirs from their own report; then the canonical ledger + quality
+   * dynamics are applied to everyone. */
+  submitSpend(playerInv) {
+    if (this.phase !== 'spend') throw new Error('bad phase ' + this.phase);
+    const P = this.P;
+    for (const u of this.unis) {
+      const rep = this._reports[u.index];
+      let inv;
+      if (u.broke) {
+        inv = { IRS: 0, ITS: 0, IRH: 0, ITH: 0 };
+      } else if (u.index === this.playerIndex) {
+        inv = {
+          IRS: Math.max(0, +playerInv.IRS || 0), ITS: Math.max(0, +playerInv.ITS || 0),
+          IRH: Math.max(0, +playerInv.IRH || 0), ITH: Math.max(0, +playerInv.ITH || 0),
+        };
+      } else {
+        inv = u.controller.spend(u, rep.net, P, rep);
+        for (const k of ['IRS', 'ITS', 'IRH', 'ITH']) inv[k] = Math.max(0, inv[k] || 0);
+      }
+      // Total investment cannot exceed available funds; scale down if over.
+      let tot = inv.IRS + inv.ITS + inv.IRH + inv.ITH;
+      const avail = Math.max(0, rep.net);
+      if (tot > avail) {
+        const k = tot > 0 ? avail / tot : 0;
+        for (const q in inv) inv[q] *= k;
+        tot = avail;
+      }
+      // Canonical ledger. Broke unis keep their frozen (negative) endowment.
+      if (!u.broke) u.E = (rep.net - tot) * (1 + P.interest);
+      // Quality dynamics (investment effects materialize "next round": they
+      // enter the state that the next league table is computed from).
+      const g = I => P.gamma * Math.sqrt(I);
+      u.RS = Math.max(0, P.delta * u.RS + g(inv.IRS));
+      u.RH = Math.max(0, P.delta * u.RH + g(inv.IRH));
+      let ts = P.delta * u.TS + g(inv.ITS);
+      let th = P.delta * u.TH + g(inv.ITH);
+      if (rep.S.matric > 0) ts += P.kappa * (rep.S.sbar - P.sMean);
+      if (rep.H.matric > 0) th += P.kappa * (rep.H.sbar - P.sMean);
+      u.TS = Math.max(0, ts);
+      u.TH = Math.max(0, th);
+      u.lastReport = rep;
+      u._lastInv = inv;
+    }
+    const pRep = this._reports[this.playerIndex];
+    const pInv = this.unis[this.playerIndex]._lastInv;
+    const spent = pInv.IRS + pInv.ITS + pInv.IRH + pInv.ITH;
+    this.roundLog.push({
+      round: this.round, report: pRep, invested: spent,
+      E_end: this.unis[this.playerIndex].E,
+    });
+    if (this.round >= P.rounds) {
+      this.phase = 'over';
+      const finalTable = this.leagueTable();
+      this.finalRank = finalTable.find(r => r.index === this.playerIndex).rank;
+      this.rankHistory.push(this.finalRank);
+      this.score = this.initialRank - this.finalRank;
+      return { done: true, finalTable, finalRank: this.finalRank, score: this.score };
+    }
+    this.phase = 'between';
+    return { done: false };
+  }
+}
+
+const THE_LEAGUE = { Game, DEFAULT_PARAMS, makeRng, maintInvest, clamp };
+if (typeof module !== 'undefined' && module.exports) module.exports = THE_LEAGUE;
+if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
+
+'use strict';
+/* ============================================================================
+ * THE LEAGUE — user interface.
+ * The engine above is used exactly as in the calibration harness:
+ *   startRound() -> submitAdmissions(dec) -> submitSpend(inv) -> ...
+ * The UI never reads private rival state: it shows only the league table,
+ * public cohort statistics, and the player's own books. In particular, no
+ * budget/affordability information is ever displayed.
+ * ========================================================================= */
+(function () {
+  const { Game, DEFAULT_PARAMS, maintInvest } = globalThis.THE_LEAGUE;
+  const P = DEFAULT_PARAMS;
+  const app = document.getElementById('app');
+
+  const EPITHETS = [
+    'Ancient, assured, and quietly asleep at the wheel.',
+    'Citations before students; the common room before the classroom.',
+    'Pack them in, pile them high, bank the difference.',
+    'Once respectable. Now available.',
+  ];
+  const FIELD_NAME = { S: 'STEM', H: 'Humanities & Social Sciences' };
+  const FIELD_SHORT = { S: 'STEM', H: 'HSS' };
+
+  let game = null;          // current Game
+  let pre = null;           // startRound() view for the current year
+  let rep = null;           // admissions report for the current year
+  let prevRanks = null;     // last year's ranks by uni index (for arrows)
+  let dec = { feeS: 8, thrS: 55, feeH: 8, thrH: 55 };   // sticky controls
+  let inv = { IRS: 0, ITS: 0, IRH: 0, ITH: 0 };
+
+  /* ------------------------------ helpers ------------------------------ */
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const money = x => '£' + (Math.round(x * 10) / 10).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + 'k';
+  const n1 = x => (Math.round(x * 10) / 10).toFixed(1);
+  const g = I => P.gamma * Math.sqrt(Math.max(0, I));
+  const el = (sel) => app.querySelector(sel);
+  const els = (sel) => Array.from(app.querySelectorAll(sel));
+
+  function setView(html) {
+    app.innerHTML = html;
+    app.firstElementChild && app.firstElementChild.classList.add('fade');
+  }
+
+  function masthead(sub, compact) {
+    return `<header class="masthead ${compact ? 'compact' : ''}">
+      <div class="paper-name">The Morning Ledger</div>
+      <h1>The League</h1>
+      <div class="standfirst">${sub}</div>
+    </header>`;
+  }
+
+  function dateline() {
+    const u = game.unis[game.playerIndex];
+    return `<div class="dateline">
+      <span>Year ${game.round} of ${P.rounds} &middot; ${esc(u.name)}</span>
+      <span>Endowment <b class="num">${money(u.E)}</b>${u.E < 30 ? ' <b class="red">(thin ice)</b>' : ''}</span>
+      <button class="resign" id="resign">resign the post</button>
+    </div>`;
+  }
+
+  function phaseStrip(active) {
+    return `<div class="phase-strip">
+      <div class="ph ${active === 1 ? 'on' : ''}">I &middot; The Admissions Desk</div>
+      <div class="ph ${active === 2 ? 'on' : ''}">II &middot; The Bursar&rsquo;s Office</div>
+    </div>`;
+  }
+
+  function leagueTableHtml(table, opts = {}) {
+    const rows = table.map(r => {
+      const me = game && r.index === game.playerIndex;
+      let delta = '';
+      if (prevRanks) {
+        const d = prevRanks[r.index] - r.rank;
+        delta = d > 0 ? `<span class="delta up">&#9650;${d}</span>` : d < 0 ? `<span class="delta down">&#9660;${-d}</span>` : '<span class="delta">&ndash;</span>';
+      }
+      return `<tr class="${me ? 'me' : ''} ${r.broke ? 'broke' : ''}">
+        <td class="rank num">${r.rank}</td>
+        <td class="uname">${esc(r.name)}${me ? ' <b>&#9670;</b>' : ''}${r.broke ? ' &dagger;' : ''}</td>
+        <td class="num">${n1(r.RS)}</td><td class="num">${n1(r.TS)}</td>
+        <td class="num">${n1(r.RH)}</td><td class="num">${n1(r.TH)}</td>
+        <td class="num total">${n1(r.total)}</td>
+        <td>${delta}</td>
+      </tr>`;
+    }).join('');
+    return `<table class="league">
+      ${opts.caption ? `<caption>${opts.caption}</caption>` : ''}
+      <thead><tr><th>#</th><th>Institution</th><th>R<sub>S</sub></th><th>T<sub>S</sub></th><th>R<sub>H</sub></th><th>T<sub>H</sub></th><th>Total</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="tbl-foot">Research (R) and Teaching (T) quality by field, as assessed by the Ledger. Rank by total; ties broken by matters the Ledger does not discuss.</div>`;
+  }
+
+  /* --------------------------- title screen ---------------------------- */
+  function renderTitle() {
+    const probe = new Game({ seed: 1 });
+    const table = probe.leagueTable();
+    prevRanks = null;
+    const rows = table.map(r => {
+      const maxScore = r.rank - 1;
+      const featured = r.rank === 4;
+      return `<div class="row ${featured ? 'featured' : ''}">
+        <div class="rank num">${r.rank}</div>
+        <div class="uni">
+          <b>${esc(r.name)}</b>
+          <div class="epithet">${EPITHETS[r.index]}</div>
+          <div class="scores num">R/T (STEM) ${n1(r.RS)} / ${n1(r.TS)} &middot; R/T (HSS) ${n1(r.RH)} / ${n1(r.TH)} &middot; total ${n1(r.total)}</div>
+        </div>
+        <div class="pick">
+          <button class="btn-ghost pick-btn" data-idx="${r.index}">${featured ? 'Take the post' : 'Govern'}</button>
+          <span class="maxnote">max score ${maxScore}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    setView(`
+      ${masthead('A game of university governance, in twenty academic years')}
+      <div class="leader">
+        <p class="dropcap">Each autumn this newspaper publishes its League of the four universities, and each autumn the same names appear in the same order. The Ledger regards this as proof of the natural order of things.</p>
+        <p>At the foot of the table stands <b>Greyfriars College</b> — endowment thin, faculties tired, reputation a rumour. Its governing board, out of options and nearly out of money, is hiring anyone willing to serve as Vice-Chancellor. The Ledger doubts anything can be done. Proving the Ledger wrong is the whole game: take the worst chair in academia and carry it to the top of the table.</p>
+        <p>Vacancies exist at better houses, for those who prefer a quieter life. The scoring, note, is unsentimental: your score is how many places you climb. Start high and there is nowhere to go.</p>
+      </div>
+      <div class="prospect">${rows}</div>
+      <div class="seedline">
+        <label for="seed">Seed (optional, for a reproducible season):</label>
+        <input id="seed" inputmode="numeric" placeholder="random">
+      </div>
+      <details class="rules">
+        <summary>How the game is played &mdash; the standing rules</summary>
+        <div class="card-body">
+          <ul>
+            <li><b>Each year, two decisions.</b> First the <b>Admissions Desk</b>: for each field (STEM and HSS) you set an entry <b>threshold</b> (every applicant at or above it receives an offer) and a <b>fee</b>. Then the <b>Bursar&rsquo;s Office</b>: you invest in research and teaching quality, per field.</li>
+            <li><b>Applicants.</b> Forty fresh school-leavers apply each year. Each has a school score, a preferred field, a taste for research prestige, and a private budget. They apply everywhere they can afford, and enrol wherever their offers look best (teaching quality plus their personal weight on research). They stay one year, pay one fee, and leave.</li>
+            <li><b>Capacity.</b> Each department teaches up to <b>8</b> students at no extra cost. You must take everyone who accepts your offer; each student beyond 8 costs <b>${money(P.cOver)}</b> in emergency provision. Over-offering is the classic way to die.</li>
+            <li><b>Money.</b> Fees are paid up front. Unspent funds earn ${Math.round(P.interest * 100)}% interest. If your endowment cannot cover the year's overage bill, the College is bankrupt and the game ends.</li>
+            <li><b>Quality.</b> Investment raises quality with diminishing returns, and takes effect the following year. All quality decays ${Math.round((1 - P.delta) * 100)}% a year if unattended. Teaching quality also drifts with the calibre of the students you actually admit, relative to the national average of ${P.sMean}.</li>
+            <li><b>Fashion.</b> Field preferences drift slowly toward whichever field boasts higher research quality across the sector.</li>
+            <li><b>Information.</b> The League table is public. Rivals&rsquo; fees, thresholds, enrolments and endowments are not. Nor — the Ledger regrets — is anything about applicants&rsquo; means: you learn the demand curve the hard way.</li>
+            <li><b>The end.</b> After ${P.rounds} years the final League is printed. Score = starting rank &minus; final rank.</li>
+          </ul>
+        </div>
+      </details>
+      <div class="footer-note">The Morning Ledger University Guide &middot; entirely fictional &middot; no external resources, no network, one file</div>
+    `);
+    els('.pick-btn').forEach(b => b.addEventListener('click', () => {
+      const idx = +b.dataset.idx;
+      const seedRaw = el('#seed').value.trim();
+      const seed = seedRaw === '' ? ((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0) : (parseInt(seedRaw, 10) >>> 0 || 1);
+      startGame(idx, seed);
+    }));
+  }
+
+  function startGame(idx, seed) {
+    game = new Game({ seed, playerIndex: idx });
+    prevRanks = null;
+    dec = { feeS: 8, thrS: 55, feeH: 8, thrH: 55 };
+    nextYear();
+  }
+
+  function nextYear() {
+    pre = game.startRound();
+    rep = null;
+    renderAdmissions();
+  }
+
+  /* ------------------------- my college card --------------------------- */
+  function myCard() {
+    const u = game.unis[game.playerIndex];
+    const qmax = 60;
+    const bar = (v, cls) => `<div class="qbar ${cls}"><i style="width:${Math.min(100, 100 * v / qmax)}%"></i></div>`;
+    const last = u.lastReport;
+    const intake = last ? `
+      <table class="report" style="margin-top:10px">
+        <thead><tr><th>Last year</th><th>Applied</th><th>Offers</th><th>Enrolled</th><th>Avg score</th></tr></thead>
+        <tbody>
+          <tr><td>STEM</td><td class="num">${last.S.applied}</td><td class="num">${last.S.offers}</td><td class="num">${last.S.matric}</td><td class="num">${last.S.sbar === null ? '&mdash;' : n1(last.S.sbar)}</td></tr>
+          <tr><td>HSS</td><td class="num">${last.H.applied}</td><td class="num">${last.H.offers}</td><td class="num">${last.H.matric}</td><td class="num">${last.H.sbar === null ? '&mdash;' : n1(last.H.sbar)}</td></tr>
+        </tbody>
+      </table>` : `<div class="notice">No admissions history yet: the books open this year.</div>`;
+    return `<section class="card plain">
+      <div class="card-head"><span>${esc(u.name)} &mdash; the books</span><span class="kicker">private</span></div>
+      <div class="card-body">
+        <div class="statline">
+          <div class="stat"><span class="lbl">Endowment</span><span class="val num">${money(u.E)}</span></div>
+          <div class="stat"><span class="lbl">League position</span><span class="val num">${pre.table.find(r => r.index === game.playerIndex).rank} of 4</span></div>
+        </div>
+        <div class="qual-grid">
+          <div class="qrow"><span class="lbl"><span>Research &middot; STEM</span><b class="num">${n1(u.RS)}</b></span>${bar(u.RS, 'research')}</div>
+          <div class="qrow"><span class="lbl"><span>Teaching &middot; STEM</span><b class="num">${n1(u.TS)}</b></span>${bar(u.TS, '')}</div>
+          <div class="qrow"><span class="lbl"><span>Research &middot; HSS</span><b class="num">${n1(u.RH)}</b></span>${bar(u.RH, 'research')}</div>
+          <div class="qrow"><span class="lbl"><span>Teaching &middot; HSS</span><b class="num">${n1(u.TH)}</b></span>${bar(u.TH, '')}</div>
+        </div>
+        ${intake}
+      </div>
+    </section>`;
+  }
+
+  function cohortCard() {
+    const c = pre.cohortStats;
+    return `<section class="card plain">
+      <div class="card-head"><span>This year&rsquo;s applicants</span><span class="kicker">${P.nApplicants} school-leavers</span></div>
+      <div class="card-body">
+        <div class="statline">
+          <div class="stat"><span class="lbl">Median score</span><span class="val num">${n1(c.median)}</span></div>
+          <div class="stat"><span class="lbl">Mean score</span><span class="val num">${n1(c.mean)}</span></div>
+          <div class="stat"><span class="lbl">Prefer STEM</span><span class="val num">${n1(c.pctStem)}%</span></div>
+        </div>
+        <div class="notice">The Ledger publishes no figures on applicants&rsquo; family means. Price your prospectus accordingly.</div>
+      </div>
+    </section>`;
+  }
+
+  /* --------------------------- admissions ------------------------------ */
+  function renderAdmissions() {
+    const u = game.unis[game.playerIndex];
+    const fieldBox = f => {
+      const last = u.lastReport ? u.lastReport[f] : null;
+      return `<div class="fieldbox">
+        <h4>${FIELD_NAME[f]}</h4>
+        <div class="ctl">
+          <span class="lbl">Entry threshold (school score)</span>
+          <div class="stepper" data-kind="thr" data-f="${f}">
+            <button data-d="-5">&#171;</button><button data-d="-1">&minus;</button>
+            <span class="val num" id="thr${f}">${dec['thr' + f]}</span>
+            <button data-d="1">+</button><button data-d="5">&#187;</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <span class="lbl">Annual fee</span>
+          <div class="stepper" data-kind="fee" data-f="${f}">
+            <button data-d="-2">&#171;</button><button data-d="-0.5">&minus;</button>
+            <span class="val num" id="fee${f}">${money(dec['fee' + f])}</span>
+            <button data-d="0.5">+</button><button data-d="2">&#187;</button>
+          </div>
+        </div>
+        <div class="demandline">${last
+          ? `Last year: <b class="num">${last.applied}</b> applied &middot; <b class="num">${last.offers}</b> offers out &middot; <b class="num">${last.matric}</b> enrolled${last.matric > P.capacity ? ` <b class="red">(${last.matric - P.capacity} over capacity)</b>` : ''}`
+          : 'No demand history yet.'}</div>
+      </div>`;
+    };
+    setView(`
+      ${masthead('Published every autumn by The Morning Ledger', true)}
+      ${dateline()}
+      ${phaseStrip(1)}
+      <div class="cols">
+        <div class="stack">
+          <section class="card plain">
+            <div class="card-head"><span>The League</span><span class="kicker">Year ${game.round}</span></div>
+            <div class="card-body">${leagueTableHtml(pre.table)}</div>
+          </section>
+          ${cohortCard()}
+        </div>
+        <div class="stack">
+          <section class="card admissions">
+            <div class="card-head"><span>Step I &mdash; The Admissions Desk</span><span class="kicker">offers &amp; fees</span></div>
+            <div class="card-body">
+              <div class="fields">${fieldBox('S')}${fieldBox('H')}</div>
+              <div class="notice warn">Capacity is ${P.capacity} per department. Every offer that is accepted must be honoured; each enrolee beyond ${P.capacity} costs ${money(P.cOver)}. Applicants who can afford you and clear your threshold get an offer &mdash; all of them.</div>
+              <button class="btn oxblood" id="post">Post the prospectus &amp; make offers</button>
+            </div>
+          </section>
+          ${myCard()}
+        </div>
+      </div>
+      <div class="footer-note">Season seed ${game.seed} &middot; The Morning Ledger University Guide</div>
+    `);
+    els('.stepper button').forEach(b => b.addEventListener('click', () => {
+      const box = b.closest('.stepper');
+      const f = box.dataset.f, d = parseFloat(b.dataset.d);
+      if (box.dataset.kind === 'thr') {
+        dec['thr' + f] = Math.max(20, Math.min(100, dec['thr' + f] + d));
+        el('#thr' + f).textContent = dec['thr' + f];
+      } else {
+        dec['fee' + f] = Math.max(0, Math.min(20, Math.round((dec['fee' + f] + d) * 2) / 2));
+        el('#fee' + f).textContent = money(dec['fee' + f]);
+      }
+    }));
+    el('#post').addEventListener('click', () => {
+      rep = game.submitAdmissions(dec);
+      if (game.phase === 'bankrupt') renderEnd({ bankrupt: true });
+      else renderBursar();
+    });
+    el('#resign').addEventListener('click', resign);
+  }
+
+  /* ----------------------------- bursar -------------------------------- */
+  function renderBursar() {
+    const u = game.unis[game.playerIndex];
+    const budget = Math.max(0, rep.net);
+    inv = { IRS: 0, ITS: 0, IRH: 0, ITH: 0 };
+
+    const reportRow = (f) => {
+      const d = rep[f];
+      return `<tr>
+        <td>${FIELD_SHORT[f]}</td>
+        <td class="num">${d.applied}</td><td class="num">${d.offers}</td><td class="num">${d.matric}</td>
+        <td class="num">${d.sbar === null ? '&mdash;' : n1(d.sbar)}</td>
+        <td class="num">${money(d.income)}</td>
+        <td class="num ${d.overage ? 'red' : ''}">${d.overage ? '&minus;' + money(d.overage) : '&mdash;'}</td>
+      </tr>`;
+    };
+
+    const invRow = (key, label, field, isTeach) => `
+      <div class="invrow" data-key="${key}">
+        <div class="lbl">${label}<b>${field}</b></div>
+        <input type="range" min="0" max="${Math.ceil(budget)}" step="0.5" value="0">
+        <div class="out"><b class="num amt">${money(0)}</b><span class="proj num"></span></div>
+      </div>`;
+
+    setView(`
+      ${masthead('Published every autumn by The Morning Ledger', true)}
+      ${dateline()}
+      ${phaseStrip(2)}
+      <div class="cols even">
+        <div class="stack">
+          <section class="card plain">
+            <div class="card-head"><span>The year&rsquo;s admissions</span><span class="kicker">confidential</span></div>
+            <div class="card-body">
+              <div class="scrollx"><table class="report">
+                <thead><tr><th>Field</th><th>Applied</th><th>Offers</th><th>Enrolled</th><th>Avg</th><th>Fees</th><th>Overage</th></tr></thead>
+                <tbody>
+                  ${reportRow('S')}${reportRow('H')}
+                  <tr class="sumrow"><td>Net of overage</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
+                </tbody>
+              </table></div>
+              <div class="notice">${intakeRemark()}</div>
+            </div>
+          </section>
+        </div>
+        <div class="stack">
+          <section class="card bursar">
+            <div class="card-head"><span>Step II &mdash; The Bursar&rsquo;s Office</span><span class="kicker">investment</span></div>
+            <div class="card-body">
+              <div class="budgetline"><span>Funds at hand</span><b class="num">${money(budget)}</b></div>
+              <div class="budgetline" style="border-top:1px dotted var(--rule)"><span>Uncommitted (earns ${Math.round(P.interest * 100)}%)</span><b class="num" id="remain">${money(budget)}</b></div>
+              ${invRow('IRS', 'Research', 'STEM')}
+              ${invRow('ITS', 'Teaching', 'STEM', true)}
+              ${invRow('IRH', 'Research', 'HSS')}
+              ${invRow('ITH', 'Teaching', 'HSS', true)}
+              <div class="presets">
+                <button class="btn-ghost" id="pMaintain">Maintain all</button>
+                <button class="btn-ghost" id="pEven">Even split, all in</button>
+                <button class="btn-ghost" id="pClear">Clear</button>
+              </div>
+              <div class="notice">Investment bears fruit next year, with diminishing returns; quality decays ${Math.round((1 - P.delta) * 100)}% a year unattended. Teaching also moves with intake calibre (this year&rsquo;s average vs the national ${P.sMean}).</div>
+              <button class="btn navy" id="commit">Commit the year&rsquo;s spending</button>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="footer-note">Season seed ${game.seed} &middot; The Morning Ledger University Guide</div>
+    `);
+
+    const QKEY = { IRS: 'RS', ITS: 'TS', IRH: 'RH', ITH: 'TH' };
+    const project = (key, I) => {
+      const q = u[QKEY[key]];
+      let next = P.delta * q + g(I);
+      if (key === 'ITS' && rep.S.matric > 0) next += P.kappa * (rep.S.sbar - P.sMean);
+      if (key === 'ITH' && rep.H.matric > 0) next += P.kappa * (rep.H.sbar - P.sMean);
+      return Math.max(0, next);
+    };
+    const refresh = () => {
+      let total = 0;
+      els('.invrow').forEach(row => { total += parseFloat(row.querySelector('input').value) || 0; });
+      els('.invrow').forEach(row => {
+        const key = row.dataset.key;
+        const input = row.querySelector('input');
+        let v = parseFloat(input.value) || 0;
+        if (total > budget) { v = Math.max(0, v - (total - budget)); input.value = v; total = null; }
+        inv[key] = v;
+        row.querySelector('.amt').textContent = money(v);
+        const q = u[QKEY[key]];
+        row.querySelector('.proj').textContent = `${n1(q)} → ${n1(project(key, v))}`;
+      });
+      if (total === null) { total = 0; els('.invrow input').forEach(i => total += parseFloat(i.value) || 0); }
+      el('#remain').textContent = money(Math.max(0, budget - total));
+    };
+    els('.invrow input').forEach(i => i.addEventListener('input', refresh));
+    el('#pMaintain').addEventListener('click', () => {
+      let left = budget;
+      for (const key of ['IRS', 'ITS', 'IRH', 'ITH']) {
+        const want = Math.min(left, maintInvest(u[QKEY[key]], P));
+        el(`.invrow[data-key=${key}] input`).value = Math.round(want * 2) / 2;
+        left -= want;
+      }
+      refresh();
+    });
+    el('#pEven').addEventListener('click', () => {
+      els('.invrow input').forEach(i => { i.value = Math.floor(budget / 4 * 2) / 2; });
+      refresh();
+    });
+    el('#pClear').addEventListener('click', () => { els('.invrow input').forEach(i => { i.value = 0; }); refresh(); });
+    el('#commit').addEventListener('click', () => {
+      const res = game.submitSpend(inv);
+      prevRanks = {};
+      pre.table.forEach(r => { prevRanks[r.index] = r.rank; });
+      if (res.done) renderEnd({ finalTable: res.finalTable });
+      else nextYear();
+    });
+    el('#resign').addEventListener('click', resign);
+    refresh();
+  }
+
+  function intakeRemark() {
+    const bits = [];
+    for (const f of ['S', 'H']) {
+      const d = rep[f];
+      if (d.matric === 0) bits.push(`${FIELD_SHORT[f]} admitted nobody &mdash; no fees, and no effect on teaching either way`);
+      else if (d.sbar >= P.sMean + 5) bits.push(`${FIELD_SHORT[f]}&rsquo;s intake (avg ${n1(d.sbar)}) flatters its teaching`);
+      else if (d.sbar <= P.sMean - 5) bits.push(`${FIELD_SHORT[f]}&rsquo;s intake (avg ${n1(d.sbar)}) will drag on its teaching`);
+    }
+    return bits.length ? bits.join('; ') + '.' : 'A quiet year for the registry: intake near the national average.';
+  }
+
+  /* ---------------------------- end screens ---------------------------- */
+  function resign() {
+    if (!game || game.phase === 'over') return;
+    if (!confirm('Resign the post and let the Ledger print what it will?')) return;
+    game.finalRank = game.rankOf(game.playerIndex);
+    game.score = game.initialRank - game.finalRank;
+    if (game.rankHistory[game.rankHistory.length - 1] !== game.finalRank) game.rankHistory.push(game.finalRank);
+    renderEnd({ resigned: true });
+  }
+
+  function rankChart() {
+    const H = game.rankHistory;
+    const W = 620, HT = 220, padL = 46, padR = 16, padT = 18, padB = 34;
+    const iw = W - padL - padR, ih = HT - padT - padB;
+    const x = i => padL + (H.length === 1 ? 0 : iw * i / (H.length - 1));
+    const y = r => padT + ih * (r - 1) / 3;
+    const pts = H.map((r, i) => `${x(i).toFixed(1)},${y(r).toFixed(1)}`).join(' ');
+    const grid = [1, 2, 3, 4].map(r =>
+      `<line x1="${padL}" y1="${y(r)}" x2="${W - padR}" y2="${y(r)}" stroke="#cfc3a8" stroke-dasharray="3 4"/>
+       <text x="${padL - 10}" y="${y(r) + 4}" text-anchor="end" font-size="12" fill="#6f6553">${r}${['st', 'nd', 'rd', 'th'][r - 1]}</text>`).join('');
+    const xticks = H.map((r, i) => i).filter(i => i % Math.ceil(H.length / 10) === 0 || i === H.length - 1)
+      .map(i => `<text x="${x(i)}" y="${HT - 12}" text-anchor="middle" font-size="11" fill="#6f6553">${i === 0 ? 'start' : i}</text>`).join('');
+    const dots = H.map((r, i) => `<circle cx="${x(i)}" cy="${y(r)}" r="3.2" fill="#7c2a1e"/>`).join('');
+    return `<svg viewBox="0 0 ${W} ${HT}" role="img" aria-label="League position by year">
+      <rect x="0" y="0" width="${W}" height="${HT}" fill="none"/>
+      ${grid}${xticks}
+      <polyline points="${pts}" fill="none" stroke="#7c2a1e" stroke-width="2.5"/>
+      ${dots}
+      <text x="${(padL + W - padR) / 2}" y="${HT - 0.5}" text-anchor="middle" font-size="11" fill="#6f6553">academic year</text>
+    </svg>`;
+  }
+
+  function renderEnd(o) {
+    const u = game.unis[game.playerIndex];
+    const score = game.score;
+    let verdict, headline, body;
+    if (o.bankrupt) {
+      verdict = 'The Ledger regrets to report';
+      headline = `${esc(u.name)} is bankrupt`;
+      body = `The overage bill could not be met, the doors are chained, and the porters have kept the good chairs. Year ${game.round} of ${P.rounds}.`;
+    } else if (o.resigned) {
+      verdict = 'From the appointments column';
+      headline = 'A resignation at ' + esc(u.name);
+      body = `The Vice-Chancellor departs &ldquo;to pursue other interests&rdquo; after ${game.round} year${game.round === 1 ? '' : 's'}.`;
+    } else if (score >= 3) {
+      verdict = 'The Ledger eats its words';
+      headline = `${esc(u.name)}, first of the League`;
+      body = 'From the foot of the table to the top of it. This newspaper maintains, without embarrassment, that it saw promise all along.';
+    } else if (score >= 1) {
+      verdict = 'The Ledger concedes';
+      headline = `${esc(u.name)} on the rise`;
+      body = 'A creditable ascent, if not yet the summit. The senior common room permits itself one glass of the good sherry.';
+    } else if (score === 0) {
+      verdict = 'The Ledger observes';
+      headline = 'The natural order holds';
+      body = 'Twenty years of administration, and the table stands exactly as it did. There is a certain dignity in that. A very small one.';
+    } else {
+      verdict = 'The Ledger is not surprised';
+      headline = `${esc(u.name)} slips`;
+      body = 'The governing board thanks the outgoing Vice-Chancellor for their service and asks that the key be left with the porter.';
+    }
+    const finalTable = o.finalTable || game.leagueTable();
+    prevRanks = null;
+    setView(`
+      ${masthead('The final edition')}
+      <section class="card plain">
+        <div class="card-body endcard">
+          <div class="verdict">${verdict}</div>
+          <h2>${headline}</h2>
+          <p style="max-width:560px;margin:0 auto">${body}</p>
+          <div class="scoreline">Score: <b class="num">${score >= 0 ? score : score}</b> <span style="color:var(--faint)">(started ${game.initialRank}${['st', 'nd', 'rd', 'th'][game.initialRank - 1]}, finished ${game.finalRank}${['st', 'nd', 'rd', 'th'][game.finalRank - 1]})</span></div>
+          <div class="chartwrap">${rankChart()}</div>
+          <div class="chart-caption">League position of ${esc(u.name)}, by year. The top line is the top of the League.</div>
+        </div>
+      </section>
+      <div style="margin-top:18px">
+        <section class="card plain">
+          <div class="card-head"><span>The final League</span><span class="kicker">as printed</span></div>
+          <div class="card-body">${leagueTableHtml(finalTable)}</div>
+        </section>
+      </div>
+      <button class="btn" id="again" style="max-width:340px;display:block;margin:22px auto 0">Another twenty years</button>
+      <div class="footer-note">Season seed ${game.seed} &middot; The Morning Ledger University Guide</div>
+    `);
+    el('#again').addEventListener('click', renderTitle);
+  }
+
+  renderTitle();
+})();
+
+</script>
+</body>
+</html>

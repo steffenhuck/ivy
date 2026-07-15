@@ -96,11 +96,12 @@ const DEFAULT_PARAMS = {
   aiCashLo: 11,       // cash cow's upkeep floor (drawn from hoard)
 
   // Starting universities, ordered by index (initial league rank order).
+  // Each has a native AI personality used whenever the player doesn't run it.
   unis: [
-    { name: 'Harkness University',    E: 120, RS: 31, TS: 30, RH: 28, TH: 29 },
-    { name: 'Wexford Institute',      E: 100, RS: 36, TS: 20, RH: 28, TH: 17 },
-    { name: 'Millbrook Metropolitan', E: 95,  RS: 18, TS: 24, RH: 16, TH: 25 },
-    { name: 'Greyfriars College',     E: 85,  RS: 13, TS: 16, RH: 11, TH: 15 },
+    { name: 'Harkness University',    personality: 'balanced', E: 120, RS: 31, TS: 30, RH: 28, TH: 29 },
+    { name: 'Wexford Institute',      personality: 'prestige', E: 100, RS: 36, TS: 20, RH: 28, TH: 17 },
+    { name: 'Millbrook Metropolitan', personality: 'cashcow',  E: 95,  RS: 18, TS: 24, RH: 16, TH: 25 },
+    { name: 'Greyfriars College',     personality: 'cashcow',  E: 85,  RS: 13, TS: 16, RH: 11, TH: 15 },
   ],
 };
 
@@ -282,15 +283,14 @@ class Game {
       broke: false, lastReport: null, ai: null, controller: null,
     }));
 
-    // Assign AI personalities to non-player unis by initial league position.
-    const order = this.leagueTable().map(r => r.index).filter(i => i !== this.playerIndex);
-    const kinds = ['balanced', 'prestige', 'cashcow'];
-    order.forEach((idx, k) => {
-      const uni = this.unis[idx];
-      uni.controller = AI_FACTORIES[kinds[k]](P);
-      uni.personality = kinds[k];
+    // Every university the player doesn't govern runs its native personality.
+    for (const uni of this.unis) {
+      if (uni.index === this.playerIndex) continue;
+      const kind = P.unis[uni.index].personality;
+      uni.controller = AI_FACTORIES[kind](P);
+      uni.personality = kind;
       uni.controller.init(uni);
-    });
+    }
 
     this.round = 0;
     this.pStem = P.pStemStart;
