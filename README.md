@@ -3,8 +3,10 @@
 A browser game about running a university, in one standalone HTML file.
 
 **Play:** open [`index.html`](index.html) in any browser. No build step, no
-network, no dependencies. An optional seed on the title screen makes a season
-reproducible.
+dependencies; the game runs fully offline (a GoatCounter analytics beacon is
+the only external request, and nothing depends on it). An optional `?seed=`
+URL parameter makes a season reproducible; the seed in play is printed in the
+footer either way.
 
 You take over one of four universities — by design, the bottom-ranked
 Greyfriars College — and have twenty academic years to climb The Morning

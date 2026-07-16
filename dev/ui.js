@@ -82,11 +82,11 @@
         <td>${delta}</td>
       </tr>`;
     }).join('');
-    return `<table class="league">
+    return `<div class="scrollx"><table class="league">
       ${opts.caption ? `<caption>${opts.caption}</caption>` : ''}
       <thead><tr><th>#</th><th>Institution</th><th>R<sub>S</sub></th><th>T<sub>S</sub></th><th>R<sub>H</sub></th><th>T<sub>H</sub></th><th>Total</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     <div class="tbl-foot">Research (R) and Teaching (T) quality by field, as assessed by the Ledger. Rank by total; ties broken by matters the Ledger does not discuss.</div>`;
   }
 
@@ -120,10 +120,6 @@
         <p>Vacancies exist at better houses, for those who prefer a quieter life. The scoring, note, is unsentimental: your score is how many places you climb. Start high and there is nowhere to go.</p>
       </div>
       <div class="prospect">${rows}</div>
-      <div class="seedline">
-        <label for="seed">Seed (optional, for a reproducible season):</label>
-        <input id="seed" inputmode="numeric" placeholder="random">
-      </div>
       <details class="rules">
         <summary>How the game is played &mdash; the standing rules</summary>
         <div class="card-body">
@@ -134,25 +130,43 @@
             <li><b>Money.</b> Fees are paid up front. Unspent funds earn ${Math.round(P.interest * 100)}% interest. If your endowment cannot cover the year's overage bill, the College is bankrupt and the game ends.</li>
             <li><b>Quality.</b> Investment raises quality with diminishing returns, and takes effect the following year. All quality decays ${Math.round((1 - P.delta) * 100)}% a year if unattended. Teaching quality also drifts with the calibre of the students you actually admit, relative to the national average of ${P.sMean}.</li>
             <li><b>Fashion.</b> Field preferences drift slowly toward whichever field boasts higher research quality across the sector.</li>
-            <li><b>Information.</b> The League table is public. Rivals&rsquo; fees, thresholds, enrolments and endowments are not. Nor — the Ledger regrets — is anything about applicants&rsquo; means: you learn the demand curve the hard way.</li>
+            <li><b>Information.</b> The League table is public. Rivals&rsquo; fees, thresholds, enrolments and endowments are not. The Ledger publishes no figures on family means &mdash; though a shrewd reader may suspect that money and marks travel together, and your own books reveal, year by year, who could afford you.</li>
             <li><b>The end.</b> After ${P.rounds} years the final League is printed. Score = starting rank &minus; final rank.</li>
           </ul>
         </div>
       </details>
-      <div class="footer-note">The Morning Ledger University Guide &middot; entirely fictional &middot; no external resources, no network, one file</div>
+      <div class="footer-note">The Morning Ledger University Guide &middot; entirely fictional &middot; one file</div>
+      <div class="footer-note sig"><a href="https://steffenhuck.github.io">steffen huck</a></div>
     `);
     els('.pick-btn').forEach(b => b.addEventListener('click', () => {
       const idx = +b.dataset.idx;
-      const seedRaw = el('#seed').value.trim();
-      const seed = seedRaw === '' ? ((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0) : (parseInt(seedRaw, 10) >>> 0 || 1);
+      // Optional ?seed= query parameter makes a season reproducible;
+      // otherwise each season is random. The seed in play is printed in
+      // the footer either way.
+      const seedRaw = new URLSearchParams(location.search).get('seed');
+      const seed = seedRaw === null || seedRaw.trim() === ''
+        ? ((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0)
+        : (parseInt(seedRaw, 10) >>> 0 || 1);
       startGame(idx, seed);
     }));
   }
 
+  // Opening admissions defaults per college — roughly each house's native
+  // AI opening, so year 1 isn't a guaranteed empty hall. (With the old flat
+  // fee 8 / threshold 55, the bottom college enrolled nobody in year 1 in
+  // 100% of 200 test seeds: every offer was dominated by Millbrook.)
+  const OPENING = [
+    { fee: 11,  thr: 58 },  // Harkness
+    { fee: 12,  thr: 62 },  // Wexford
+    { fee: 6.5, thr: 45 },  // Millbrook
+    { fee: 5.5, thr: 35 },  // Greyfriars
+  ];
+
   function startGame(idx, seed) {
     game = new Game({ seed, playerIndex: idx });
     prevRanks = null;
-    dec = { feeS: 8, thrS: 55, feeH: 8, thrH: 55 };
+    const o = OPENING[idx];
+    dec = { feeS: o.fee, thrS: o.thr, feeH: o.fee, thrH: o.thr };
     nextYear();
   }
 
@@ -204,7 +218,7 @@
           <div class="stat"><span class="lbl">Mean score</span><span class="val num">${n1(c.mean)}</span></div>
           <div class="stat"><span class="lbl">Prefer STEM</span><span class="val num">${n1(c.pctStem)}%</span></div>
         </div>
-        <div class="notice">The Ledger publishes no figures on applicants&rsquo; family means. Price your prospectus accordingly.</div>
+        <div class="notice">The Ledger publishes no figures on family means &mdash; though money and marks are rumoured to travel together, and your own books show, year by year, who could afford you.</div>
       </div>
     </section>`;
   }
@@ -299,9 +313,10 @@
       </tr>`;
     };
 
-    const invRow = (key, label, field, isTeach) => `
+    const QKEY = { IRS: 'RS', ITS: 'TS', IRH: 'RH', ITH: 'TH' };
+    const invRow = (key, label, field) => `
       <div class="invrow" data-key="${key}">
-        <div class="lbl">${label}<b>${field}</b></div>
+        <div class="lbl">${label}<b>${field}</b><span class="upkeep num">upkeep ${money(maintInvest(u[QKEY[key]], P))}</span></div>
         <input type="range" min="0" max="${Math.ceil(budget)}" step="0.5" value="0">
         <div class="out"><b class="num amt">${money(0)}</b><span class="proj num"></span></div>
       </div>`;
@@ -350,7 +365,6 @@
       <div class="footer-note">Season seed ${game.seed} &middot; The Morning Ledger University Guide</div>
     `);
 
-    const QKEY = { IRS: 'RS', ITS: 'TS', IRH: 'RH', ITH: 'TH' };
     const project = (key, I) => {
       const q = u[QKEY[key]];
       let next = P.delta * q + g(I);
@@ -369,7 +383,11 @@
         inv[key] = v;
         row.querySelector('.amt').textContent = money(v);
         const q = u[QKEY[key]];
-        row.querySelector('.proj').textContent = `${n1(q)} → ${n1(project(key, v))}`;
+        const next = project(key, v);
+        const proj = row.querySelector('.proj');
+        proj.textContent = `${n1(q)} → ${n1(next)}`;
+        proj.classList.toggle('up', next >= q);
+        proj.classList.toggle('down', next < q);
       });
       if (total === null) { total = 0; els('.invrow input').forEach(i => total += parseFloat(i.value) || 0); }
       el('#remain').textContent = money(Math.max(0, budget - total));
@@ -406,7 +424,21 @@
       const d = rep[f];
       if (d.matric === 0) bits.push(`${FIELD_SHORT[f]} admitted nobody &mdash; no fees, and no effect on teaching either way`);
       else if (d.sbar >= P.sMean + 5) bits.push(`${FIELD_SHORT[f]}&rsquo;s intake (avg ${n1(d.sbar)}) flatters its teaching`);
-      else if (d.sbar <= P.sMean - 5) bits.push(`${FIELD_SHORT[f]}&rsquo;s intake (avg ${n1(d.sbar)}) will drag on its teaching`);
+      else if (d.sbar <= P.sMean - 5) bits.push(`${FIELD_SHORT[f]}&rsquo;s intake (avg ${n1(d.sbar)}) drags teaching by ${n1(P.kappa * (P.sMean - d.sbar))} a year at current calibre`);
+    }
+    // Declined-offers feedback. Uses only the player's own report and the
+    // public league table: if some rival's teaching AND research in the
+    // field both match or beat ours, the Ledger names the ailment.
+    const me = game.unis[game.playerIndex];
+    const declined = ['S', 'H'].filter(f => rep[f].offers >= 5 && rep[f].matric < rep[f].offers / 2);
+    if (declined.length) {
+      const dominated = declined.some(f => pre.table.some(r =>
+        r.index !== game.playerIndex && !r.broke &&
+        (f === 'S' ? (r.TS >= me.TS && r.RS >= me.RS) : (r.TH >= me.TH && r.RH >= me.RH))));
+      const names = declined.map(f => FIELD_SHORT[f]).join('&rsquo;s and ');
+      bits.push(`Most of ${names}&rsquo;s offers were taken up elsewhere` + (dominated
+        ? ` &mdash; the Ledger observes that ${esc(me.name)} is at present neither the cheapest house nor the best at anything`
+        : `; applicants with choices exercised them`));
     }
     return bits.length ? bits.join('; ') + '.' : 'A quiet year for the registry: intake near the national average.';
   }
