@@ -30,6 +30,7 @@ The game engine was built headless and calibrated before any UI existed
   harness report in its header comment
 
 Calibration result over 500 seeds from the worst start (also embedded at the
-top of `index.html`): Sharp finishes 1st in 57% of seeds, Sensible improves
-rank in 64% but reaches the top in only 6%, Naive stagnates or declines in
-96%; bankruptcy under Sensible play is rare (2.6%).
+top of `index.html`, regenerated after the stratified-cohort and random-event
+engine changes): Sharp finishes 1st in 58% of seeds, Sensible improves rank
+in 64% but reaches the top in only 6%, Naive stagnates or declines in 98%;
+bankruptcy under Sensible play is rare (4.2%).

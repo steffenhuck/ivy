@@ -104,6 +104,16 @@ table.league tr.broke td { color: var(--faint); text-decoration: line-through; }
 .btn-ghost { background: none; border: 1px solid var(--rule-dark); color: var(--ink); font: inherit; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; padding: 6px 10px; cursor: pointer; }
 .btn-ghost:hover { background: var(--paper-3); }
 
+/* ---- The morning's news ---- */
+.card.news { margin-bottom: 18px; }
+.card.news .card-head { background: var(--oxblood); color: var(--paper); }
+.news-own { margin: 4px 0 8px; font-size: 15px; }
+.news-own b { white-space: nowrap; }
+.news-rival { color: var(--faint); font-style: italic; font-size: 13.5px; margin: 6px 0; padding-left: 14px; border-left: 2px solid var(--rule); }
+
+/* ---- Year in review ---- */
+.dcomp { display: block; font-size: 11px; color: var(--faint); font-style: italic; margin-top: 2px; }
+
 /* ---- Report ---- */
 table.report { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 340px; }
 table.report th { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); font-weight: normal; text-align: right; border-bottom: 2px solid var(--rule-dark); padding: 4px 6px; }

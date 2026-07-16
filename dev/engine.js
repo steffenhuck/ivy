@@ -14,7 +14,10 @@
  *     correlation required by the spec (richer students score a bit higher).
  *   - taste weight theta ~ Uniform(thetaMin, thetaMax); student values a
  *     university at T_f + theta * R_f for their preferred field f.
- *   - field preference: STEM with probability pStem (see drift below).
+ *   - field preference: stratified, not Bernoulli — exactly
+ *     Math.round(pStem * nApplicants) applicants prefer STEM each round,
+ *     the rest HSS. Scores, budgets and theta stay iid; only the field
+ *     composition is deterministic given pStem (see drift below).
  *
  * Field-preference drift (endogenous, from round 2 onward):
  *   pStem <- clamp(pStem + pStemEta * tanh((avgR_S - avgR_H) / pStemScale),
@@ -30,6 +33,17 @@
  *   T' = delta * T + g(I_T) + kappa * (sbarDept - sMean)   [intake term only
  *        if the department admitted >= 1 student this round]
  *   Qualities are floored at 0.
+ *
+ * Random events (from round 1): each university, in index order, draws an
+ * occurrence and a selection number at the very top of every round from a
+ * SEPARATE seeded stream (rngE = makeRng(seed + '/events')) — events never
+ * consume the main rng, so the applicant stream is unaffected by them.
+ * With probability 1/3 an event from the weighted EVENTS table applies
+ * immediately, before the round's league table is computed (the table
+ * reflects the morning's news). Money losses never push E below 5: the
+ * loss is truncated to max(0, E - 5) and the record flagged truncated.
+ * Quality effects are floored at 0. Broke universities draw and discard
+ * both numbers (stream stability), and receive no events.
  *
  * Ledger (canonical): E_{t+1} = (E_t + F_t - C_t - I_t) * (1 + r).
  * Bankruptcy: if E_t + F_t - C_t < 0 after market clearing, the university is
@@ -104,6 +118,53 @@ const DEFAULT_PARAMS = {
     { name: 'Greyfriars College',     personality: 'cashcow',  E: 85,  RS: 13, TS: 16, RH: 11, TH: 15 },
   ],
 };
+
+/* ------------------------------ Events ----------------------------------
+ * Mechanics only — all narrative text lives in the UI layer, keyed by id.
+ * kind 'money': deltaE applied to the endowment (losses truncated at E=5).
+ * kind 'quality': effects map applied to the named qualities (floor 0). */
+const EVENTS = [
+  // money, positive
+  { id: 'crane',        kind: 'money', deltaE: +28, weight: 1 },
+  { id: 'alumnus',      kind: 'money', deltaE: +18, weight: 2 },
+  { id: 'anon',         kind: 'money', deltaE: +32, weight: 1 },
+  { id: 'stair',        kind: 'money', deltaE: +22, weight: 2 },
+  { id: 'meadow',       kind: 'money', deltaE: +25, weight: 1 },
+  { id: 'conference',   kind: 'money', deltaE: +12, weight: 3 },
+  { id: 'patent',       kind: 'money', deltaE: +30, weight: 1 },
+  // money, negative
+  { id: 'roof',         kind: 'money', deltaE: -22, weight: 2 },
+  { id: 'lawsuit',      kind: 'money', deltaE: -18, weight: 2 },
+  { id: 'boiler',       kind: 'money', deltaE: -12, weight: 3 },
+  { id: 'audit',        kind: 'money', deltaE: -15, weight: 2 },
+  { id: 'asbestos',     kind: 'money', deltaE: -26, weight: 1 },
+  { id: 'clawback',     kind: 'money', deltaE: -20, weight: 1 },
+  { id: 'flood',        kind: 'money', deltaE: -16, weight: 2 },
+  { id: 'portrait',     kind: 'money', deltaE: -8,  weight: 2 },
+  // quality, positive
+  { id: 'chair',        kind: 'quality', effects: { RS: +3 }, weight: 2 },
+  { id: 'viral',        kind: 'quality', effects: { TH: +2 }, weight: 2 },
+  { id: 'prize',        kind: 'quality', effects: { RH: +3 }, weight: 2 },
+  { id: 'demonstrators',kind: 'quality', effects: { TS: +2 }, weight: 2 },
+  { id: 'trunk',        kind: 'quality', effects: { RH: +2 }, weight: 2 },
+  { id: 'vindicated',   kind: 'quality', effects: { RS: +4 }, weight: 1 },
+  { id: 'award',        kind: 'quality', effects: { TS: +2 }, weight: 2 },
+  // quality, negative
+  { id: 'poached',      kind: 'quality', effects: { RS: -3 }, weight: 2 },
+  { id: 'remarks',      kind: 'quality', effects: { TH: -2 }, weight: 2 },
+  { id: 'memoirs',      kind: 'quality', effects: { RH: -3 }, weight: 2 },
+  { id: 'retraction',   kind: 'quality', effects: { RS: -2 }, weight: 2 },
+  { id: 'exodus',       kind: 'quality', effects: { TS: -3 }, weight: 2 },
+  { id: 'timetable',    kind: 'quality', effects: { TH: -2 }, weight: 2 },
+  { id: 'strike',       kind: 'quality', effects: { TS: -2, TH: -2 }, weight: 1 },
+  { id: 'inspectorate', kind: 'quality', effects: { TH: -2 }, weight: 2 },
+];
+const EVENTS_TOTAL_WEIGHT = EVENTS.reduce((a, e) => a + e.weight, 0);
+function pickEvent(r) {
+  let x = r * EVENTS_TOTAL_WEIGHT;
+  for (const e of EVENTS) { x -= e.weight; if (x < 0) return e; }
+  return EVENTS[EVENTS.length - 1];
+}
 
 /* ------------------------- AI opponent heuristics ------------------------
  * All AIs obey the same rules as the player: same capacity, overage cost,
@@ -275,6 +336,8 @@ class Game {
     if (opts.params && opts.params.unis) P.unis = opts.params.unis;
     this.seed = opts.seed === undefined ? 1 : opts.seed;
     this.rng = makeRng(this.seed);
+    // Separate event stream: events never consume the main rng.
+    this.rngE = makeRng(String(this.seed) + '/events');
     this.playerIndex = opts.playerIndex === undefined ? 3 : opts.playerIndex;
 
     this.unis = P.unis.map((u, i) => ({
@@ -324,6 +387,37 @@ class Game {
     if (this.phase !== 'pre' && this.phase !== 'between') throw new Error('bad phase ' + this.phase);
     const P = this.P;
     this.round++;
+    // The morning's news: events fire before the pStem update and before
+    // the league table is computed, so the year's table reflects them.
+    // Every university draws two numbers (occurrence, selection) from the
+    // event stream in index order, even when unused — stream stability.
+    const events = [];
+    for (const u of this.unis) {
+      const rOcc = this.rngE(), rSel = this.rngE();
+      if (u.broke) continue; // draws discarded
+      if (rOcc < 1 / 3) {
+        const ev = pickEvent(rSel);
+        const rec = { index: u.index, id: ev.id };
+        if (ev.kind === 'money') {
+          let d = ev.deltaE;
+          if (d < 0 && -d > Math.max(0, u.E - 5)) {
+            d = -Math.max(0, u.E - 5); // a loss may never push E below 5
+            rec.truncated = true;
+          }
+          u.E += d;
+          rec.deltaE = d;
+        } else {
+          rec.deltaQ = {};
+          rec.fields = Object.keys(ev.effects);
+          for (const q of rec.fields) {
+            u[q] = Math.max(0, u[q] + ev.effects[q]);
+            rec.deltaQ[q] = ev.effects[q];
+          }
+        }
+        events.push(rec);
+      }
+    }
+    this.events = events;
     if (this.round >= 2) {
       let rs = 0, rh = 0;
       for (const u of this.unis) { rs += u.RS; rh += u.RH; }
@@ -331,13 +425,15 @@ class Game {
         this.pStem + P.pStemEta * Math.tanh((rs / 4 - rh / 4) / P.pStemScale),
         P.pStemMin, P.pStemMax);
     }
-    // Draw 40 fresh applicants (students last exactly one round).
+    // Draw 40 fresh applicants (students last exactly one round). Field
+    // assignment is stratified: exactly round(pStem * n) prefer STEM.
     const apps = [];
+    const nStem = Math.round(this.pStem * P.nApplicants);
     for (let i = 0; i < P.nApplicants; i++) {
       const s = clamp(P.sMean + P.sSd * gauss(this.rng), P.sClampLo, P.sClampHi);
       const b = clamp(P.bBase + P.bSlope * (s - P.sMean) + P.bNoise * gauss(this.rng), P.bMin, P.bMax);
       const theta = P.thetaMin + (P.thetaMax - P.thetaMin) * this.rng();
-      const f = this.rng() < this.pStem ? 'S' : 'H';
+      const f = i < nStem ? 'S' : 'H';
       apps.push({ s, b, theta, f });
     }
     this.applicants = apps;
@@ -350,7 +446,7 @@ class Game {
     const table = this.leagueTable();
     if (this.round > 1) this.rankHistory.push(table.find(r => r.index === this.playerIndex).rank);
     this.phase = 'admissions';
-    return { round: this.round, table, cohortStats: this.cohortStats };
+    return { round: this.round, table, cohortStats: this.cohortStats, events };
   }
 
   /* Step 1 — Admissions. The player's {feeS, thrS, feeH, thrH} plus each
@@ -502,6 +598,6 @@ class Game {
   }
 }
 
-const THE_LEAGUE = { Game, DEFAULT_PARAMS, makeRng, maintInvest, clamp };
+const THE_LEAGUE = { Game, DEFAULT_PARAMS, EVENTS, makeRng, maintInvest, clamp };
 if (typeof module !== 'undefined' && module.exports) module.exports = THE_LEAGUE;
 if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;

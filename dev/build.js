@@ -35,6 +35,12 @@ lines.push('  - Sensible typically improves rank, rarely reaches the top');
 lines.push('  - Naive stagnates or declines');
 lines.push('  - Bankruptcy possible but rare under Sensible play');
 lines.push('');
+lines.push('This report was regenerated after two engine changes: stratified cohort');
+lines.push('composition (exactly round(pStem*40) STEM applicants per round) and the');
+lines.push('random event system (separate seeded RNG stream, never touching the main');
+lines.push('applicant stream). Bankruptcy rates vs the pre-event calibration:');
+lines.push('  naive 0.0% -> 0.0%   sensible 2.6% -> 4.2% (+1.6pt)   sharp 3.2% -> 2.4% (-0.8pt)');
+lines.push('');
 lines.push('FULL PARAMETER SET (also live in DEFAULT_PARAMS below):');
 lines.push(JSON.stringify(DEFAULT_PARAMS, null, 2));
 
