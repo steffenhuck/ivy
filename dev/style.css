@@ -110,6 +110,21 @@ table.league tr.broke td { color: var(--faint); text-decoration: line-through; }
 .news-own { margin: 4px 0 8px; font-size: 15px; }
 .news-own b { white-space: nowrap; }
 .news-rival { color: var(--faint); font-style: italic; font-size: 13.5px; margin: 6px 0; padding-left: 14px; border-left: 2px solid var(--rule); }
+.news-line { color: var(--faint); font-style: italic; font-size: 13.5px; margin: 4px 0; }
+.news-line.news-own-line { color: var(--ink); font-style: normal; }
+sup.dag { color: var(--oxblood); font-size: 10px; line-height: 0; }
+
+/* ---- LATE EXTRA interstitial ---- */
+.extra-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(26, 21, 14, .55); display: flex; align-items: center; justify-content: center; padding: 20px 14px; overflow-y: auto; overflow-x: hidden; }
+.extra-card { background: var(--paper); border: 6px double var(--oxblood); box-shadow: 9px 11px 0 rgba(20, 16, 10, .38); max-width: 540px; width: 100%; padding: 16px 20px 18px; transform: rotate(-1.5deg); animation: stamp .35s cubic-bezier(.2, 1.35, .45, 1) both; }
+@keyframes stamp {
+  from { opacity: 0; transform: rotate(-4.5deg) scale(1.22) translateY(-36px); }
+  to   { opacity: 1; transform: rotate(-1.5deg) scale(1); }
+}
+.extra-mast { text-align: center; font-weight: 900; letter-spacing: .2em; font-size: 13.5px; text-transform: uppercase; color: var(--oxblood); border-bottom: 2px solid var(--rule-dark); padding-bottom: 8px; margin-bottom: 10px; }
+.extra-body .news-own { font-size: 15.5px; }
+.extra-card .btn { margin-top: 14px; }
+@media (max-width: 480px) { .extra-card { transform: rotate(-1deg); padding: 12px 14px 14px; } }
 
 /* ---- Year in review ---- */
 .dcomp { display: block; font-size: 11px; color: var(--faint); font-style: italic; margin-top: 2px; }
@@ -136,8 +151,9 @@ table.report tr.sumrow td { font-weight: 700; border-top: 2px solid var(--rule-d
 .invrow .out { font-size: 13px; text-align: right; }
 .invrow .out b { font-size: 15px; }
 .invrow .proj { display: block; font-size: 11.5px; color: var(--faint); }
-.budgetline { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; font-size: 14px; }
+.budgetline { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; font-size: 14px; gap: 8px; flex-wrap: wrap; }
 .budgetline b { font-size: 19px; }
+.budgetline.decomp span { font-size: 13px; color: var(--faint); }
 .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 
 /* ---- Title screen ---- */

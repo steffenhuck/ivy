@@ -127,24 +127,38 @@
     </div>`;
   }
 
-  /* "The morning's news" — shown on the Admissions Desk in years with at
-   * least one event. The player's event gets its full paragraph (effect in
-   * bold); rivals get a one-liner chosen by valence. */
-  function newsCard() {
-    const evs = pre.events || [];
-    if (!evs.length) return '';
-    const items = evs.map(ev => {
+  /* The morning's news. Built ONCE per round (in nextYear) so the LATE
+   * EXTRA interstitial and the in-brief recap card tell the same story —
+   * pick() is flavour-only Math.random and must not re-roll between the
+   * two surfaces. Neither surface touches the game RNGs. */
+  let newsData = null;
+
+  // Effect in bold. Player quality effects use the running form
+  // "STEM research −3, from 24.3 to 21.3" — values are read at build time,
+  // immediately after startRound, when u[q] is the fresh post-event value.
+  function effectHtml(ev) {
+    if (ev.deltaE !== undefined) {
+      return `<b class="num ${ev.deltaE < 0 ? 'red' : 'green'}">${ev.deltaE < 0 ? '&minus;' : '+'}${money(Math.abs(ev.deltaE))}</b>`;
+    }
+    const u = game.unis[ev.index];
+    return '<b>' + Object.entries(ev.deltaQ).map(([q, d]) => {
+      const now = u[q];
+      const oldV = Math.max(0, now - d);
+      return `${QLABEL[q]} ${d < 0 ? '&minus;' : '+'}${Math.abs(d)}, from ${n1(oldV)} to ${n1(now)}`;
+    }).join('; ') + '</b>';
+  }
+
+  function buildNews() {
+    newsData = (pre.events || []).map(ev => {
       const u = game.unis[ev.index];
       if (ev.index === game.playerIndex) {
-        let effect;
-        if (ev.deltaE !== undefined) {
-          effect = `<b class="num ${ev.deltaE < 0 ? 'red' : 'green'}">${ev.deltaE < 0 ? '&minus;' : '+'}${money(Math.abs(ev.deltaE))}</b>`;
-        } else {
-          effect = '<b>' + Object.entries(ev.deltaQ).map(([q, d]) =>
-            `${QLABEL[q]} ${d < 0 ? '&minus;' : '+'}${Math.abs(d)}`).join(', ') + '</b>';
-        }
+        const eff = effectHtml(ev);
         const silver = ev.truncated ? ' The College has sold the silver.' : '';
-        return `<p class="news-own">${EVENT_TEXT[ev.id]}${silver} ${effect}</p>`;
+        return {
+          me: true,
+          para: `${EVENT_TEXT[ev.id]}${silver} ${eff}`,
+          line: `${esc(u.name)} &mdash; ${eff}${ev.truncated ? ' The silver is sold.' : ''}`,
+        };
       }
       const positive = ev.deltaE !== undefined
         ? ev.deltaE >= 0
@@ -152,11 +166,45 @@
       const set = ev.deltaE !== undefined
         ? (positive ? RIVAL_LINES.moneyPlus : RIVAL_LINES.moneyMinus)
         : (positive ? RIVAL_LINES.qualPlus : RIVAL_LINES.qualMinus);
-      return `<p class="news-rival">${pick(set).replace('{name}', esc(u.name))}</p>`;
+      const line = pick(set).replace('{name}', esc(u.name));
+      return { me: false, para: line, line };
     });
+    // The College's own news leads the page.
+    newsData.sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0));
+  }
+
+  /* LATE EXTRA — full-viewport interstitial shown before the desk in any
+   * year with news. Player events as full paragraphs; rivals as their
+   * one-liners. Dismiss reveals the admissions desk beneath. */
+  function showExtra() {
+    const stale = document.getElementById('extraBack');
+    if (stale) stale.remove();
+    const div = document.createElement('div');
+    div.className = 'extra-backdrop';
+    div.id = 'extraBack';
+    div.innerHTML = `
+      <div class="extra-card" role="dialog" aria-modal="true" aria-label="Late extra">
+        <div class="extra-mast">The Morning Ledger &middot; Late Extra</div>
+        <div class="extra-body">
+          ${newsData.map(n => n.me
+            ? `<p class="news-own">${n.para}</p>`
+            : `<p class="news-rival">${n.para}</p>`).join('')}
+        </div>
+        <button class="btn oxblood" id="extraRead">Read on</button>
+      </div>`;
+    document.body.appendChild(div);
+    div.querySelector('#extraRead').addEventListener('click', () => div.remove());
+  }
+
+  /* In-brief recap on the desk: one line per event, so the record persists
+   * after the extra is dismissed. */
+  function newsCard() {
+    if (!newsData || !newsData.length) return '';
+    const items = newsData.map(n =>
+      `<p class="news-line ${n.me ? 'news-own-line' : ''}">${n.line}</p>`).join('');
     return `<section class="card news">
-      <div class="card-head"><span>The morning&rsquo;s news</span><span class="kicker">Year ${game.round}</span></div>
-      <div class="card-body">${items.join('')}</div>
+      <div class="card-head"><span>The morning&rsquo;s news &mdash; in brief</span><span class="kicker">Year ${game.round}</span></div>
+      <div class="card-body">${items}</div>
     </section>`;
   }
 
@@ -168,11 +216,15 @@
         const d = prevRanks[r.index] - r.rank;
         delta = d > 0 ? `<span class="delta up">&#9650;${d}</span>` : d < 0 ? `<span class="delta down">&#9660;${-d}</span>` : '<span class="delta">&ndash;</span>';
       }
+      // Overnight-revision daggers: quality cells changed by this morning's
+      // events (admissions desk only; opts.daggers maps index -> Set(keys)).
+      const dg = q => (opts.daggers && opts.daggers[r.index] && opts.daggers[r.index].has(q))
+        ? '<sup class="dag">&dagger;</sup>' : '';
       return `<tr class="${me ? 'me' : ''} ${r.broke ? 'broke' : ''}">
         <td class="rank num">${r.rank}</td>
         <td class="uname">${esc(r.name)}${me ? ' <b>&#9670;</b>' : ''}${r.broke ? ' &dagger;' : ''}</td>
-        <td class="num">${n1(r.RS)}</td><td class="num">${n1(r.TS)}</td>
-        <td class="num">${n1(r.RH)}</td><td class="num">${n1(r.TH)}</td>
+        <td class="num">${n1(r.RS)}${dg('RS')}</td><td class="num">${n1(r.TS)}${dg('TS')}</td>
+        <td class="num">${n1(r.RH)}${dg('RH')}</td><td class="num">${n1(r.TH)}${dg('TH')}</td>
         <td class="num total">${n1(r.total)}</td>
         <td>${delta}</td>
       </tr>`;
@@ -182,7 +234,7 @@
       <thead><tr><th>#</th><th>Institution</th><th>R<sub>S</sub></th><th>T<sub>S</sub></th><th>R<sub>H</sub></th><th>T<sub>H</sub></th><th>Total</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
-    <div class="tbl-foot">Research (R) and Teaching (T) quality by field, as assessed by the Ledger. Rank by total; ties broken by matters the Ledger does not discuss.</div>`;
+    <div class="tbl-foot">Research (R) and Teaching (T) quality by field, as assessed by the Ledger. Rank by total; ties broken by matters the Ledger does not discuss.${opts.daggers ? ' <sup class="dag">&dagger;</sup>&nbsp;revised overnight; see the morning&rsquo;s extra.' : ''}</div>`;
   }
 
   /* --------------------------- title screen ---------------------------- */
@@ -222,7 +274,7 @@
             <li><b>Each year, two decisions.</b> First the <b>Admissions Desk</b>: for each field (STEM and HSS) you set an entry <b>threshold</b> (every applicant at or above it receives an offer) and a <b>fee</b>. Then the <b>Bursar&rsquo;s Office</b>: you invest in research and teaching quality, per field.</li>
             <li><b>Applicants.</b> Forty fresh school-leavers apply each year. Each has a school score, a preferred field, a taste for research prestige, and a private budget. They apply everywhere they can afford, and enrol wherever their offers look best (teaching quality plus their personal weight on research). They stay one year, pay one fee, and leave.</li>
             <li><b>Capacity.</b> Each department teaches up to <b>8</b> students at no extra cost. You must take everyone who accepts your offer; each student beyond 8 costs <b>${money(P.cOver)}</b> in emergency provision. Over-offering is the classic way to die.</li>
-            <li><b>Money.</b> Fees are paid up front. Unspent funds earn ${Math.round(P.interest * 100)}% interest. If your endowment cannot cover the year's overage bill, the College is bankrupt and the game ends.</li>
+            <li><b>Money.</b> Fees are paid up front &mdash; the year&rsquo;s income sits in the endowment before the Bursar spends a penny, and whatever he does not spend earns ${Math.round(P.interest * 100)}% interest, fees included. If your endowment cannot cover the year's overage bill, the College is bankrupt and the game ends.</li>
             <li><b>Quality.</b> Investment raises quality with diminishing returns, and takes effect the following year. All quality decays ${Math.round((1 - P.delta) * 100)}% a year if unattended. Teaching quality also drifts with the calibre of the students you actually admit, relative to the national average of ${P.sMean}.</li>
             <li><b>Fashion.</b> Field preferences drift slowly toward whichever field boasts higher research quality across the sector.</li>
             <li><b>Information.</b> The League table is public. Rivals&rsquo; fees, thresholds, enrolments and endowments are not. The Ledger publishes no figures on family means &mdash; though a shrewd reader may suspect that money and marks travel together, and your own books reveal, year by year, who could afford you.</li>
@@ -268,7 +320,9 @@
   function nextYear() {
     pre = game.startRound();
     rep = null;
+    buildNews();
     renderAdmissions();
+    if (newsData.length) showExtra(); // desk is already rendered beneath
   }
 
   /* ------------------------- my college card --------------------------- */
@@ -322,6 +376,15 @@
   }
 
   /* --------------------------- admissions ------------------------------ */
+  // Quality cells revised by this morning's events, for the dagger marks.
+  function morningDaggers() {
+    const map = {};
+    for (const ev of (pre.events || [])) {
+      if (ev.deltaQ) map[ev.index] = new Set(Object.keys(ev.deltaQ));
+    }
+    return Object.keys(map).length ? map : null;
+  }
+
   function renderAdmissions() {
     const u = game.unis[game.playerIndex];
     const fieldBox = f => {
@@ -358,7 +421,7 @@
         <div class="stack">
           <section class="card plain">
             <div class="card-head"><span>The League</span><span class="kicker">Year ${game.round}</span></div>
-            <div class="card-body">${leagueTableHtml(pre.table)}</div>
+            <div class="card-body">${leagueTableHtml(pre.table, { daggers: morningDaggers() })}</div>
           </section>
           ${cohortCard()}
         </div>
@@ -444,8 +507,8 @@
           <section class="card bursar">
             <div class="card-head"><span>Step II &mdash; The Bursar&rsquo;s Office</span><span class="kicker">investment</span></div>
             <div class="card-body">
-              <div class="budgetline"><span>Funds at hand</span><b class="num">${money(budget)}</b></div>
-              <div class="budgetline" style="border-top:1px dotted var(--rule)"><span>Uncommitted (earns ${Math.round(P.interest * 100)}%)</span><b class="num" id="remain">${money(budget)}</b></div>
+              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C > 0 ? ` &minus; overage ${money(rep.C)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
+              <div class="budgetline" style="border-top:1px dotted var(--rule)"><span>Uncommitted (earns ${Math.round(P.interest * 100)}%, fees included)</span><b class="num" id="remain">${money(budget)}</b></div>
               ${invRow('IRS', 'Research', 'STEM')}
               ${invRow('ITS', 'Teaching', 'STEM', true)}
               ${invRow('IRH', 'Research', 'HSS')}
@@ -556,7 +619,11 @@
     // Money prose (all from the player's own books).
     const spent = invA.IRS + invA.ITS + invA.IRH + invA.ITH;
     const interest = u.E - (rep.net - spent);
-    const moneyProse = `Fees brought ${money(rep.F)}${rep.C > 0 ? `, overage took ${money(rep.C)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.`;
+    // Opening balance = endowment at the admissions desk (already including
+    // any of the morning's money news). opening + F - C - I + interest = E.
+    const opening = rep.net - rep.F + rep.C;
+    const hadMoneyNews = (pre.events || []).some(e => e.index === game.playerIndex && e.deltaE !== undefined);
+    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C > 0 ? `, overage took ${money(rep.C)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
 
     // Rank prose, with variants; name rivals passed or passing.
     const newRankOf = i => newTable.find(r => r.index === i).rank;
