@@ -114,7 +114,16 @@ const DEFAULT_PARAMS = {
   capacity: 8,          // per department per round, zero marginal cost
   cOver: 24,            // per-head overage penalty above capacity (market)
   schemeFee: 6.5,       // regulated flat fee, all fields (scheme)
-  seatCost: 1.0,        // annual cost per DECLARED seat, filled or not (scheme)
+  seatCost: 1.0,        // annual cost per DECLARED seat, filled or not (scheme, legacy)
+  // EXPERIMENTAL unified cost model (costModel: 'unified'): every one of the
+  // 8 capacity seats per department costs rhoFlat per year in BOTH worlds,
+  // filled or not (independent of the scheme's declared quota, which then
+  // becomes a pure report to the clearing house); enrolment above capacity
+  // still costs cOver per head, reachable only in the market. 'legacy'
+  // (default) reproduces the shipped behaviour exactly.
+  costModel: 'legacy',  // 'legacy' | 'unified'
+  rhoFlat: 1.0,         // unified: annual cost per capacity seat, both worlds
+  feeCap: 20,           // ceiling used by scripted strategies' fee clamps
   interest: 0.05,       // r: interest on funds unspent after investment
   delta: 0.85,          // quality decay factor
   gamma: 1.5,           // g(I) = gamma * sqrt(I)
@@ -637,7 +646,9 @@ class Game {
           r.offers = q; // declared quota
           r.matric = held[u.index].length;
           r.income = r.matric * P.schemeFee;
-          r.overage = q * P.seatCost; // the seats bill
+          r.overage = P.costModel === 'unified'
+            ? P.capacity * P.rhoFlat        // rent on all capacity seats, report-independent
+            : q * P.seatCost;               // legacy: the declared-seats bill
           for (const p of held[u.index]) r.sSum += p.a.s;
           r.cutoff = r.matric > 0 ? Math.min(...held[u.index].map(p => p.a.s)) : null;
         }
@@ -674,7 +685,10 @@ class Game {
     for (const u of this.unis) {
       for (const f of ['S', 'H']) {
         const r = reports[u.index][f];
-        if (!scheme) r.overage = Math.max(0, r.matric - P.capacity) * P.cOver;
+        if (!scheme) {
+          r.overage = Math.max(0, r.matric - P.capacity) * P.cOver
+            + (P.costModel === 'unified' ? P.capacity * P.rhoFlat : 0);
+        }
         r.sbar = r.matric > 0 ? r.sSum / r.matric : null;
         delete r.sSum;
       }

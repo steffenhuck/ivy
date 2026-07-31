@@ -34,7 +34,7 @@ function sensible(P) {
           else if (d.matric <= 3) { st.fee[f] -= 1; st.thr[f] -= 2; }
           if (d.offers > 12) st.thr[f] += 2;
           if (d.applied === 0) st.fee[f] -= 1;
-          st.fee[f] = clamp(st.fee[f], 4.5, 18);
+          st.fee[f] = clamp(st.fee[f], 4.5, P.feeCap - 2);
           st.thr[f] = clamp(st.thr[f], 45, 70);
         }
       }
@@ -132,7 +132,7 @@ function sharp(P) {
             else if (d.matric <= 3) st.thr[f] -= 1;
           }
           st.lastRev[f] = rev;
-          st.fee[f] = clamp(st.fee[f], 4, 20);
+          st.fee[f] = clamp(st.fee[f], 4, P.feeCap);
           st.thr[f] = clamp(st.thr[f], 34, 72);
         }
         // Cross-field exposure: two simultaneous surges are lethal.
@@ -292,7 +292,41 @@ function sharpScheme(P) {
   };
 }
 
+/* PROBE (market, unified-cost experiments): the OVERBOOKER tries to make
+ * overflow a business model. It prices just above the overage cost c (so
+ * every student beyond capacity is nominally profitable), drops its bar,
+ * never rations, and spends aggressively. If Steffen's conjecture holds --
+ * demand thins out above the budget distribution and maintenance eats the
+ * margin -- this strategy should fail even where fee > c is feasible. */
+function overbooker(P) {
+  const st = { last: null };
+  return {
+    admissions() {
+      const fee = clamp(P.cOver + 3, 4, P.feeCap);
+      return { feeS: fee, thrS: 35, feeH: fee, thrH: 35 };
+    },
+    spend(pre, rep, uni) {
+      st.last = rep;
+      const avail = Math.max(0, rep.net - 20);
+      const want = {
+        IRS: maintInvest(uni.RS, P), ITS: maintInvest(uni.TS, P),
+        IRH: maintInvest(uni.RH, P), ITH: maintInvest(uni.TH, P),
+      };
+      let tot = want.IRS + want.ITS + want.IRH + want.ITH;
+      if (tot > avail && tot > 0) {
+        const k = avail / tot;
+        for (const q in want) want[q] *= k;
+        tot = avail;
+      }
+      const leftover = (avail - tot) * 0.7;
+      for (const q in want) want[q] += leftover / 4;
+      return want;
+    },
+  };
+}
+
 module.exports = {
   naive, sensible, sharp,
   naiveScheme, sensibleScheme, sharpScheme,
+  overbooker,
 };
