@@ -1,0 +1,197 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1.15in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage[expansion=false]{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{textcomp}
+
+\newcommand{\game}{\textsc{The League}}
+\title{\textsc{The League}:\\[2pt] \large Technical Notes on a Game of University Competition under Two Institutions\thanks{The game, the simulations, and a first draft of these notes were produced in collaboration with Claude (Anthropic). The game is a single, dependency-free HTML file; it, the simulation harness, and the source of these notes live at \url{https://github.com/steffenhuck/ivy}. Comments are welcome, and so are high scores.}}
+\author{Steffen Huck\\ \normalsize WZB Berlin \& University College London}
+\date{July 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent Four universities compete for forty school-leavers, once a year, for twenty years. In one world they set their own fees and must honour every acceptance; in the other a regulator fixes the fee and a clearing house assigns students by deferred acceptance against declared quotas. \game{} is a browser game in which a player takes over the worst of the four under either institution and tries to reach the top of a published league table. These notes set out the common environment, the two market designs, and a calibration by scripted players of three skill levels. The market kills by crowd; the scheme kills by emptiness.
+\end{abstract}
+
+\section{Introduction}
+
+You have accepted the worst chair in academia. Greyfriars College is fourth of four in the league table that \emph{The Morning Ledger} publishes every autumn; its endowment would not survive two bad roofs; its teaching is tired and its research is a rumour. The governing board, out of options and nearly out of money, asks only that you climb.
+
+How you may climb depends on the world. In the first world you set your own fees, one for each of your two departments. Applicants apply wherever they can afford, you make an offer to every applicant above a bar of your choosing, and every offer that is accepted must be honoured---the first eight students in a department are cheap, and the ninth is ruinously dear. In the second world the fee has been confiscated by a regulator and set equal for everyone. A national clearing house runs the admissions round: you declare how many seats you will staff and how low you will stoop, an algorithm assigns each student to the best place that will hold them, and the rent on every declared seat falls due whether a student sits in it or not.
+
+\game{} is a browser game in which both worlds can be played, from the same starting position, against the same opponents. These notes are its documentation, written for economists.
+
+The design brief imposed a discipline worth recording. The engine was built and calibrated headless before any interface existed: three scripted players of increasing sophistication---static, adaptive, exploitative---were run over five hundred seeded histories per institution, and parameters were tuned until the sophisticated player usually carries the worst college to the top, the adaptive player improves but rarely wins, and the static player does not improve at all. The calibration tables are reproduced in Section~\ref{sec:calib} and shipped inside the game file itself. A second discipline is pedagogical. In each world the winning strategy, discoverable by play, is a known piece of economics: in the market it is monopoly pricing over a captive segment whose demand curve must be learned by costly experiment; in the scheme it is manipulation of a stable mechanism via capacities, in the sense of S\"onmez (1997). The syllabus is smuggled in with the fun.
+
+The notes proceed as follows. Section~\ref{sec:env} sets out the environment common to both worlds. Sections~\ref{sec:market} and~\ref{sec:scheme} specify the two institutions. Section~\ref{sec:calib} reports the calibration and a comparison of the two games' difficulty. Section~\ref{sec:disc} discusses what the comparison teaches.
+
+\section{The common environment}\label{sec:env}
+
+\paragraph{Universities.} There are four universities, indexed $i$. Each carries five state variables: an endowment $E^i$ and four qualities---research and teaching in each of two fields, STEM ($S$) and the humanities and social sciences ($H$)---written $R_S^i, T_S^i, R_H^i, T_H^i$. All money is in thousands of pounds. The league table ranks universities by the sum of the four qualities; ties are broken by endowment, then by a fixed index. The table is public. Endowments, fees, thresholds, quotas, and enrolments are not. One university is run by the player; the other three are run by heuristic personalities described in Appendix~\ref{app:ai}. Starting states appear in Table~\ref{tab:start}.
+
+\paragraph{Students.} Each year forty fresh applicants are drawn. An applicant is a quadruple $(s, b, \theta, f)$. The school score is $s \sim N(60, 13^2)$, truncated to $[20,100]$. The budget is $b = 10 + 0.12\,(s - 60) + \varepsilon$ with $\varepsilon \sim N(0, 2.6^2)$, truncated to $[3,22]$; money and marks travel together, mildly. The taste for research is $\theta \sim U[0, 1.2]$. The field is assigned by stratification: exactly $\mathrm{round}(40\,p_t)$ applicants prefer STEM, where $p_1 = \tfrac12$ and
+\[
+p_{t+1} \;=\; \mathrm{clamp}\!\left(p_t + 0.02\,\tanh\!\Big(\tfrac{\overline{R}_{S,t} - \overline{R}_{H,t}}{10}\Big)\right)\!,
+\qquad p_t \in [0.3, 0.7],
+\]
+so that fashion drifts gently toward whichever field the sector researches better. A student attending university $i$ in field $f$ enjoys utility $u^i = T_f^i + \theta R_f^i$: teaching benefits everyone alike, research prestige benefits those who care for it. Students live one year. They pay one fee, are taught once, and leave; there are no cohorts.
+
+\paragraph{Quality dynamics.} Investment has diminishing returns and takes effect the following year. For each quality $Q \in \{R_S, T_S, R_H, T_H\}$ with investment $I_Q \ge 0$,
+\[
+R' \;=\; \delta R + \gamma \sqrt{I_R}, \qquad
+T' \;=\; \delta T + \gamma \sqrt{I_T} + \kappa\,(\bar{s} - 60)\cdot\mathbf{1}\{\text{anyone admitted}\},
+\]
+with decay $\delta = 0.85$, productivity $\gamma = 1.5$, and intake effect $\kappa = 0.14$, where $\bar{s}$ is the department's mean admitted score. Qualities are floored at zero. Decay is deliberately brutal: an unattended quality loses fifteen per cent a year, so standing still is a policy with consequences.
+
+\paragraph{The ledger.} Fees are paid up front. With fee income $F_t$, institution-specific costs $C_t$ (overage in the market, seat rent in the scheme), and investment $I_t$,
+\[
+E_{t+1} \;=\; \big(E_t + F_t - C_t - I_t\big)\,(1 + r), \qquad r = 0.05 .
+\]
+Bankruptcy is checked after admissions and before spending: if $E_t + F_t - C_t < 0$, the college is finished. For the player this ends the game. A broke rival is frozen: it stops admitting, invests nothing, and decays.
+
+\paragraph{Events.} Each year each solvent college suffers an event with probability $\tfrac13$, drawn from a weighted table of thirty-one shocks: money shocks between $-26$ and $+32$, quality shocks between $-3$ and $+4$. Events are drawn from a random-number stream separate from the one generating applicants, so the two sources of luck never contaminate one another; money losses are truncated so that no event pushes an endowment below~5. Events fire before the year's league table is computed. The morning's news is news.
+
+\paragraph{Capacity.} Each department teaches up to eight students a year at zero marginal cost. What happens beyond eight is precisely where the two worlds part.
+
+\section{The first institution: the market}\label{sec:market}
+
+In the market world a university chooses, for each field, a fee $\varphi_f \ge 0$ and an admission threshold $\tau_f$. Clearing is simultaneous and mechanical. Every applicant applies to every university whose fee for her field she can afford ($\varphi_f \le b$). Every university makes an offer to every applicant to a field whose score meets that field's bar ($s \ge \tau_f$). Every applicant holding at least one offer enrols at the offer maximising $T_f + \theta R_f$, ties broken at random; applicants without offers exit without consequence. Offers are unconditional: a university takes every student who accepts. Each enrolee beyond the eighth in a department costs $c = 24$---roughly three times a typical fee---so oversubscription is not a windfall but an accident, and occasionally an obituary.
+
+Two features make this a game rather than an exercise. First, the demand curve is hidden: the player sees the cohort's score statistics but never its budgets, and must learn by experiment what the market will bear. The bottom college's central discovery is that it is a local monopolist over a captive segment---the students every rival rejects or prices out---and that the revenue-maximising fee for captives is interior: pricing at the floor buys almost no additional demand. Second, the accepted-offer rule creates a tail risk with a memorable signature. An offer book calibrated to a thirty per cent yield converts at ninety when a quality crossing redirects student choice, and the overage bill from one good year can end the college. The scripted sharp player forecasts its yield from the public league table and rations admission the moment it becomes attractive; human players learn the same lesson, usually the expensive way.
+
+One remark for the theorist. The market's clearing is itself a single round of student-proposing acceptance---students take their best offer---without quotas and without the right to say no. Seen this way, the two worlds differ in exactly two rights: the right to price, and the right to refuse.
+
+\section{The second institution: the scheme}\label{sec:scheme}
+
+In the scheme world the fee is fixed at $\bar{\varphi} = 6.5$ for every field and every college, admission is means-blind, and budgets are irrelevant. A university chooses, for each field, a quota $q_f \in \{0, 1, \ldots, 8\}$ and a threshold $\tau_f$. Every declared seat costs rent $\rho = 1$ per year, filled or not.
+
+Matriculation is decided by student-proposing deferred acceptance (Gale and Shapley, 1962), run independently for each field. Students rank the four departments of their field strictly by $T_f + \theta R_f$, with vanishing random perturbations guaranteeing strictness. Departments hold responsive preferences: they rank students strictly by score, treat students below $\tau_f$ as unacceptable, and hold at most $q_f$. The algorithm is the standard one. Unmatched students propose down their lists; a department holds the best acceptable proposals up to its quota and rejects the rest, displacing previously held students where necessary; nothing is final until no rejected student has anywhere left to propose. The outcome is the student-optimal stable matching, unique under strict preferences and independent of the order in which proposals are processed (McVitie and Wilson, 1971). The implementation was audited mechanically: across three thousand randomly generated instances the produced matchings contain no blocking pair of either kind---no student preferring a department with a free acceptable seat, and no justified envy---and across twelve hundred simulated game rounds no quota is ever exceeded.
+
+Two theoretical properties of this design do the game's work. The mechanism is strategy-proof for students (Roth, 1982)---fitting, since the students are honest automata---but no stable mechanism is strategy-proof for the colleges (Roth, 1985), and this one is manipulable in a specific, profitable direction: by capacities (S\"onmez, 1997). A department that declares fewer seats than its demand holds only its best proposers; its intake calibre rises, the $\kappa$ term feeds its teaching, better teaching attracts better proposers, and the seats it did not declare were rent it did not pay. The scripted sharp player's mid-game is precisely this manipulation, entered once it has any demand worth rationing and abandoned late, when league points want volume. A player who finds the move unaided has discovered a theorem, and will be pleased to hear it.
+
+The scheme also inverts the market's mortality. Deferred acceptance never over-fills a quota, so there is no overage and no yield risk; the ruin instrument is the rent. A college that declares sixteen seats and fills three pays for sixteen. Static play, harmless in the market, is here a slow execution.
+
+\section{Scripted play and calibration}\label{sec:calib}
+
+Each world is calibrated with three scripted players run from the worst starting position over seeds $1$--$500$. The tiers are constructed from the same recipes in both worlds. \emph{Naive} makes static mid-range choices and spreads investment evenly. \emph{Sensible} tracks realised demand with its instruments, maintains its qualities against decay, and keeps a reserve. \emph{Sharp} exploits the institution: in the market, revenue hill-climbing on the captive segment, threshold-farming of the intake effect, yield forecasting and top-end rationing; in the scheme, a threshold dive to harvest the rejection cascade, then capacity under-reporting, then late expansion. Table~\ref{tab:calib} reports outcomes; Table~\ref{tab:diff} reports derived difficulty metrics on the same seeds.
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{llccccc}
+\toprule
+ & & mean & \multicolumn{1}{c}{finishes} & improves & stagnates or & bankrupt \\
+world & strategy & score & 1st (\%) & (\%) & declines (\%) & (\%) \\
+\midrule
+market & naive    & 0.02 & 0.0  & 1.8  & 98.2 & 0.0 \\
+       & sensible & 0.81 & 6.2  & 63.6 & 36.4 & 4.2 \\
+       & sharp    & 2.21 & 58.4 & 97.6 & 2.4  & 2.4 \\
+\addlinespace
+scheme & naive    & 0.08 & 1.0  & 5.2  & 94.8 & 94.6 \\
+       & sensible & 0.66 & 8.4  & 37.0 & 63.0 & 0.0 \\
+       & sharp    & 2.68 & 74.2 & 97.4 & 2.6  & 0.0 \\
+\bottomrule
+\end{tabular}
+\caption{Calibration over 500 seeded histories per cell, player at the worst start (rank 4). Score $=$ initial rank $-$ final rank; ``improves'' is score $\ge 1$.}
+\label{tab:calib}
+\end{table}
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{llcccc}
+\toprule
+world & strategy & s.d.\ of score & median escape year & never escapes (\%) \\
+\midrule
+market & naive    & 0.13 & ---  & 93 \\
+       & sensible & 0.79 & 13   & 37 \\
+       & sharp    & 0.98 & 8    & 4  \\
+\addlinespace
+scheme & naive    & 0.37 & ---  & 95 \\
+       & sensible & 0.99 & 10   & 62 \\
+       & sharp    & 0.63 & 5    & 3  \\
+\bottomrule
+\end{tabular}
+\caption{Difficulty metrics, same 500 seeds. ``Escape'' is the first year the player leaves rank 4; medians are over escaping seeds.}
+\label{tab:diff}
+\end{table}
+
+A caveat belongs up front, stated once. Comparing institutions through algorithm performance confounds how hard the world is with how good the hand-crafted algorithm happens to be in it. The naive and sensible rows are comparable by construction---the same abstract recipe mapped onto each world's instruments. The sharp rows are world-specific by design; they measure each institution's exploitability ceiling as probed with comparable effort, and nothing stronger is claimed. A cleaner instrument---one identical meta-optimiser given equal compute in each world---is straightforward within the harness and is left for a later vintage of these notes.
+
+With that caveat, three regularities survive. First, the skill gradient has a different shape. The market rewards each increment of sophistication smoothly ($+0.79$ in mean score from naive to sensible, $+1.40$ from sensible to sharp); the scheme is a cliff ($+0.58$, then $+2.02$). Basic competence buys less in the scheme, mastery buys more: the scheme has both the higher skill threshold and the higher ceiling. Second, luck changes address. For the sharp player the scheme is the calmer world (score s.d.\ 0.63 against 0.98; median escape in year 5 against year 8): deferred acceptance abolishes the market's yield lottery. For the sensible player it is the reverse (0.99 against 0.79, and 62 per cent never escape): the incumbents in the scheme defend rank with quality investment---their only defence, price being confiscated---and whether a middling challenge lands against a defending incumbent is substantially a matter of draws. Third, ruin changes address too, and completely. The market's bankruptcies sit in the adaptive rows and are accidents of ambition, overage arriving with success; the scheme's sit almost entirely in the static row and are the wages of passivity, rent collected on empty seats for twenty years. No adaptive scheme player went bankrupt in a thousand runs.
+
+\section{Discussion}\label{sec:disc}
+
+The calibration is a designer's equilibrium, not nature's. The opponents are heuristics, tuned until the game's difficulty targets held; the numbers in Tables~\ref{tab:calib} and~\ref{tab:diff} characterise \game{}, not British higher education. The reader should know exactly what is, and is not, being claimed: the game does not adjudicate between the institutions, and its parameters were chosen for play, not estimated from anything.
+
+What the comparison does teach is structural, and it survives the caveat. Remove the price instrument, and competition does not disappear---it migrates entirely into quality, where incumbents with hoarded endowments hold the high ground; the resulting reaction functions deter exactly the half-hearted challenges that the market, indifferently, lets through. Guarantee demand through a clearing house, and inattention becomes the deadliest strategy in either world, because fixed costs bill the sleeping. And publish everyone's quality while hiding everyone's money, and the remaining information rents sit precisely where each institution's hidden margin is: the market's player learns a demand curve, the scheme's player learns her own position in forty preference lists she never sees.
+
+For the classroom the game has one further use. Institutions are usually taught as rules and compared as theorems; here they are compared as lived experience, twenty minutes a world. A student who has died of overage understands the accepted-offer rule differently thereafter; a student who has paid three years' rent on empty seats holds views on capacity declaration; and a student who has beaten the scheme by shrinking has re-derived S\"onmez (1997) with her own hands. The theorems, of course, were always there. The game merely arranges for them to be discovered in anger.
+
+\appendix
+
+\section{Parameters and starting states}\label{app:params}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llll}
+\toprule
+symbol & value & role & world \\
+\midrule
+$T$ & 20 & years per game & both \\
+$n$ & 40 & applicants per year & both \\
+--- & 8 & department capacity (cheap seats) & both \\
+$c$ & 24 & overage cost per excess enrolee & market \\
+$\bar\varphi$ & 6.5 & regulated fee & scheme \\
+$\rho$ & 1.0 & annual rent per declared seat & scheme \\
+$r$ & 0.05 & interest on unspent funds & both \\
+$\delta$ & 0.85 & quality retention & both \\
+$\gamma$ & 1.5 & investment productivity, $\gamma\sqrt{I}$ & both \\
+$\kappa$ & 0.14 & intake effect on teaching & both \\
+$s$ & $N(60,13^2)$ on $[20,100]$ & school score & both \\
+$b$ & $10 + 0.12(s{-}60) + N(0,2.6^2)$ on $[3,22]$ & budget & market \\
+$\theta$ & $U[0,1.2]$ & research taste & both \\
+$p_t$ & drift $0.02\tanh(\cdot/10)$ on $[0.3,0.7]$ & STEM share & both \\
+--- & $\tfrac13$; weighted table & event probability; event law & both \\
+--- & 5 & endowment floor under event losses & both \\
+\bottomrule
+\end{tabular}
+\caption{The full parameter set, as shipped in \texttt{DEFAULT\_PARAMS} inside the game file.}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lcccccc}
+\toprule
+university & $E$ & $R_S$ & $T_S$ & $R_H$ & $T_H$ & sum \\
+\midrule
+Harkness University    & 120 & 31 & 30 & 28 & 29 & 118 \\
+Wexford Institute      & 100 & 36 & 20 & 28 & 17 & 101 \\
+Millbrook Metropolitan & 95  & 18 & 24 & 16 & 25 & 83  \\
+Greyfriars College     & 85  & 13 & 16 & 11 & 15 & 55  \\
+\bottomrule
+\end{tabular}
+\caption{Starting states. The player is intended to take Greyfriars; the scoring quietly punishes a softer choice, since score is capped by starting rank minus one.}
+\label{tab:start}
+\end{table}
+
+\section{The opponents}\label{app:ai}
+
+The three rivals run fixed personalities under exactly the player's rules and information. \emph{Harkness}, the balanced incumbent, steers each quality toward a fixed target slightly above its starting level and otherwise hoards; in the scheme it defends the summit, raising its target by fifteen per cent whenever the published gap to the college below falls under ten points. \emph{Wexford}, the prestige chaser, prices high (or, in the scheme, declares few seats at a high bar), overweights research roughly two to one, and rescues its teaching only when collapse is visible; in the scheme it opens its war chest when displaced in the table. \emph{Millbrook}, the cash cow, prices low and fills every seat it can, invests a capped upkeep budget, and banks the rest; in the scheme it counter-invests from the hoard when overtaken or when a challenger closes to within four points. The scheme-only reaction functions exist because price competition does not: without them, any adaptive challenger strolled to the top, and with them the scheme acquired the challenge-deterrent character reported in Section~\ref{sec:calib}. All heuristics condition only on public information and their own books.
+
+\section*{References}
+
+\begin{description}
+\item Gale, D., and L.\ S.\ Shapley (1962): ``College Admissions and the Stability of Marriage,'' \emph{American Mathematical Monthly}, 69(1), 9--15.
+\item McVitie, D.\ G., and L.\ B.\ Wilson (1971): ``The Stable Marriage Problem,'' \emph{Communications of the ACM}, 14(7), 486--490.
+\item Roth, A.\ E.\ (1982): ``The Economics of Matching: Stability and Incentives,'' \emph{Mathematics of Operations Research}, 7(4), 617--628.
+\item Roth, A.\ E.\ (1985): ``The College Admissions Problem is not Equivalent to the Marriage Problem,'' \emph{Journal of Economic Theory}, 36(2), 277--288.
+\item Roth, A.\ E., and M.\ Sotomayor (1990): \emph{Two-Sided Matching: A Study in Game-Theoretic Modeling and Analysis}. Cambridge University Press.
+\item S\"onmez, T.\ (1997): ``Manipulation via Capacities in Two-Sided Matching Markets,'' \emph{Journal of Economic Theory}, 77(1), 197--204.
+\end{description}
+
+\end{document}
