@@ -10,7 +10,8 @@
  * Applicant distribution (drawn jointly, per applicant):
  *   - school score s ~ Normal(sMean, sSd), clamped to [sClampLo, sClampHi].
  *   - budget b = bBase + bSlope*(s - sMean) + Normal(0, bNoise), clamped to
- *     [bMin, bMax]. bSlope > 0 gives the mild positive score/budget
+ *     [bMin, bMax] (bMax = feeCap: nothing but demand polices high fees).
+ *     bSlope > 0 gives the mild positive score/budget
  *     correlation required by the spec (richer students score a bit higher).
  *   - taste weight theta ~ Uniform(thetaMin, thetaMax); student values a
  *     university at T_f + theta * R_f for their preferred field f.
@@ -56,16 +57,24 @@
  *     independently per field. Each university declares a quota per
  *     department (0..capacity seats) and a threshold below which
  *     applicants are unacceptable; department preferences are by school
- *     score. DA never over-fills a quota, so there is no overage — the
- *     risk is inverted: every DECLARED seat costs seatCost per year,
- *     filled or not (C_t = seatCost * total declared seats). Ledger and
- *     bankruptcy rules are unchanged. In scheme reports, 'applied' counts
- *     distinct students who proposed to the department at any point of the
- *     match, 'offers' echoes the declared quota, and 'cutoff' is the
- *     lowest admitted score (null if none). Student preference ties are
- *     broken by tiny rng perturbations; the scheme consumes the main rng
- *     differently from the market, so the two worlds are separate
+ *     score. DA never over-fills a quota. The quota is a PURE REPORT to
+ *     the clearing house: it carries no cost of its own (capacity
+ *     manipulation a la Sonmez, undiluted). In scheme reports, 'applied'
+ *     counts distinct students who proposed to the department at any point
+ *     of the match, 'offers' echoes the declared quota, and 'cutoff' is
+ *     the lowest admitted score (null if none). Student preference ties
+ *     are broken by tiny rng perturbations; the scheme consumes the main
+ *     rng differently from the market, so the two worlds are separate
  *     reproducibility universes (same seed + same world => same game).
+ *
+ * UNIFIED COST FUNCTION (identical in both worlds): each department's
+ * admissions cost is  C_dept = capacity * seatRent + cOver * max(0, m - capacity),
+ * where m is enrolment — rent on all 8 capacity seats, filled or not,
+ * plus a steep per-head price above capacity. Deferred acceptance never
+ * over-fills, so the second term is reachable only in the market. Fees may
+ * exceed cOver (feeCap > cOver): overflow-for-profit is priced but, as the
+ * calibration shows, demand thins out far below the fee cap and quality
+ * maintenance eats the margin — the temptation exists, the customers do not.
  *
  * Ledger (canonical): E_{t+1} = (E_t + F_t - C_t - I_t) * (1 + r).
  * Bankruptcy: if E_t + F_t - C_t < 0 after market clearing, the university is
@@ -112,27 +121,19 @@ const DEFAULT_PARAMS = {
   rounds: 20,
   nApplicants: 40,
   capacity: 8,          // per department per round, zero marginal cost
-  cOver: 24,            // per-head overage penalty above capacity (market)
-  schemeFee: 6.5,       // regulated flat fee, all fields (scheme)
-  seatCost: 1.0,        // annual cost per DECLARED seat, filled or not (scheme, legacy)
-  // EXPERIMENTAL unified cost model (costModel: 'unified'): every one of the
-  // 8 capacity seats per department costs rhoFlat per year in BOTH worlds,
-  // filled or not (independent of the scheme's declared quota, which then
-  // becomes a pure report to the clearing house); enrolment above capacity
-  // still costs cOver per head, reachable only in the market. 'legacy'
-  // (default) reproduces the shipped behaviour exactly.
-  costModel: 'legacy',  // 'legacy' | 'unified'
-  rhoFlat: 1.0,         // unified: annual cost per capacity seat, both worlds
-  feeCap: 20,           // ceiling used by scripted strategies' fee clamps
+  cOver: 24,            // per-head cost of enrolment above capacity (market only)
+  schemeFee: 5.5,       // regulated flat fee, all fields (scheme)
+  seatRent: 0.75,       // annual cost per capacity seat, filled or not, BOTH worlds
+  feeCap: 25,           // maximum chargeable fee (also strategies' clamp ceiling)
   interest: 0.05,       // r: interest on funds unspent after investment
-  delta: 0.85,          // quality decay factor
+  delta: 0.87,          // quality decay factor
   gamma: 1.5,           // g(I) = gamma * sqrt(I)
   kappa: 0.14,          // intake-quality effect on teaching
 
   // Applicant score distribution
   sMean: 60, sSd: 13, sClampLo: 20, sClampHi: 100,
   // Budgets (mildly correlated with score via bSlope)
-  bBase: 10, bSlope: 0.12, bNoise: 2.6, bMin: 3, bMax: 22,
+  bBase: 10, bSlope: 0.12, bNoise: 3.8, bMin: 3, bMax: 25,
   // Taste for research
   thetaMin: 0, thetaMax: 1.2,
   // STEM preference drift
@@ -140,8 +141,9 @@ const DEFAULT_PARAMS = {
 
   // AI spending discipline (per-round investment budget caps)
   aiPrestigeCap: 32,  // prestige chaser's institutional plan ceiling
-  aiCashHi: 16,       // cash cow's upkeep ceiling
-  aiCashLo: 11,       // cash cow's upkeep floor (drawn from hoard)
+  aiBalancedCap: 46,  // balanced incumbent's total plan ceiling (even in defense)
+  aiCashHi: 11,       // cash cow's upkeep ceiling
+  aiCashLo: 8,        // cash cow's upkeep floor (drawn from hoard)
 
   // Starting universities, ordered by index (initial league rank order).
   // Each has a native AI personality used whenever the player doesn't run it.
@@ -149,7 +151,7 @@ const DEFAULT_PARAMS = {
     { name: 'Harkness University',    personality: 'balanced', E: 120, RS: 31, TS: 30, RH: 28, TH: 29 },
     { name: 'Wexford Institute',      personality: 'prestige', E: 100, RS: 36, TS: 20, RH: 28, TH: 17 },
     { name: 'Millbrook Metropolitan', personality: 'cashcow',  E: 95,  RS: 18, TS: 24, RH: 16, TH: 25 },
-    { name: 'Greyfriars College',     personality: 'cashcow',  E: 85,  RS: 13, TS: 16, RH: 11, TH: 15 },
+    { name: 'Greyfriars College',     personality: 'cashcow',  E: 105,  RS: 13, TS: 16, RH: 11, TH: 15 },
   ],
 };
 
@@ -305,8 +307,8 @@ function aiPrestige(P) {
     spend(uni, net, P2, rep) {
       const investable = Math.max(0, net - 15);
       const wounded = P2.world === 'scheme' && (uni.rank >= 3 || uni.gapBelow < 5);
-      const drawE = wounded ? 0.25 : 0.15;
-      const cap = wounded ? P2.aiPrestigeCap + 12 : P2.aiPrestigeCap;
+      const drawE = wounded ? 0.3 : 0.15;
+      const cap = wounded ? P2.aiPrestigeCap + 18 : P2.aiPrestigeCap;
       // Bounded ambition: even flush with cash it won't spend beyond its
       // institutional plan (~48/round) — the headroom a challenger needs.
       const budget = Math.min(investable, 1.2 * rep.F + drawE * Math.max(0, uni.E), cap);
@@ -369,8 +371,8 @@ function aiCashCow(P) {
     spend(uni, net, P2, rep) {
       const investable = Math.max(0, net - 15);
       const fight = P2.world === 'scheme' && (uni.rank >= 4 || uni.gapBelow < 4);
-      const lo = fight ? P2.aiCashLo + 14 : P2.aiCashLo;
-      const hi = fight ? P2.aiCashHi + 18 : P2.aiCashHi;
+      const lo = fight ? P2.aiCashLo + 18 : P2.aiCashLo;
+      const hi = fight ? P2.aiCashHi + 24 : P2.aiCashHi;
       const budget = Math.min(investable, Math.max(0.35 * rep.F, lo), hi);
       const each = budget / 4;
       return { IRS: each, ITS: each, IRH: each, ITH: each };
@@ -445,11 +447,19 @@ function aiBalanced(P) {
     spend(uni, net, P2) {
       const avail = Math.max(0, net - 20);
       let tgt = uni.ai.target;
-      // Scheme only: an incumbent knocked off the top of the table defends
-      // it from the hoard — the plan becomes 15% more ambitious until the
-      // natural order is restored.
-      if (P2.world === 'scheme' && (uni.rank >= 2 || uni.gapBelow < 10)) {
-        tgt = { RS: tgt.RS * 1.15, TS: tgt.TS * 1.15, RH: tgt.RH * 1.15, TH: tgt.TH * 1.15 };
+      // Scheme only: the summit defends itself against whoever is coming.
+      // The league table is public, so the incumbent can see the nearest
+      // challenger's total (own total minus the published gap) and aims a
+      // margin above it, hoard permitting — a reaction function in quality,
+      // price being confiscated.
+      if (P2.world === 'scheme' && (uni.rank >= 2 || uni.gapBelow < 12)) {
+        const ownTotal = uni.RS + uni.TS + uni.RH + uni.TH;
+        const challenger = uni.rank >= 2 ? ownTotal + uni.gapAbove : ownTotal - uni.gapBelow;
+        const perQ = Math.max((challenger + 10) / 4, 0);
+        tgt = {
+          RS: Math.max(tgt.RS, perQ), TS: Math.max(tgt.TS, perQ),
+          RH: Math.max(tgt.RH, perQ), TH: Math.max(tgt.TH, perQ),
+        };
       }
       const toward = (Q, T) => {
         const need = (T - P2.delta * Q) / P2.gamma;
@@ -459,10 +469,13 @@ function aiBalanced(P) {
         IRS: toward(uni.RS, tgt.RS), ITS: toward(uni.TS, tgt.TS),
         IRH: toward(uni.RH, tgt.RH), ITH: toward(uni.TH, tgt.TH),
       };
-      const tot = want.IRS + want.ITS + want.IRH + want.ITH;
-      if (tot > avail && tot > 0) {
-        const k = avail / tot;
+      let tot = want.IRS + want.ITS + want.IRH + want.ITH;
+      // Even Harkness has a senate: the plan, defensive or not, is capped.
+      const cap = Math.min(avail, P2.aiBalancedCap);
+      if (tot > cap && tot > 0) {
+        const k = cap / tot;
         for (const q in want) want[q] *= k;
+        tot = cap;
       }
       return want;
     },
@@ -596,6 +609,8 @@ class Game {
       u.rank = row.rank;
       const below = table.find(r => r.rank === row.rank + 1);
       u.gapBelow = below ? row.total - below.total : Infinity;
+      const above = table.find(r => r.rank === row.rank - 1);
+      u.gapAbove = above ? above.total - row.total : 0;
     }
     if (this.round > 1) this.rankHistory.push(table.find(r => r.index === this.playerIndex).rank);
     this.phase = 'admissions';
@@ -646,9 +661,7 @@ class Game {
           r.offers = q; // declared quota
           r.matric = held[u.index].length;
           r.income = r.matric * P.schemeFee;
-          r.overage = P.costModel === 'unified'
-            ? P.capacity * P.rhoFlat        // rent on all capacity seats, report-independent
-            : q * P.seatCost;               // legacy: the declared-seats bill
+          r.overage = P.capacity * P.seatRent; // rent on all capacity seats, report-independent
           for (const p of held[u.index]) r.sSum += p.a.s;
           r.cutoff = r.matric > 0 ? Math.min(...held[u.index].map(p => p.a.s)) : null;
         }
@@ -686,8 +699,8 @@ class Game {
       for (const f of ['S', 'H']) {
         const r = reports[u.index][f];
         if (!scheme) {
-          r.overage = Math.max(0, r.matric - P.capacity) * P.cOver
-            + (P.costModel === 'unified' ? P.capacity * P.rhoFlat : 0);
+          r.overage = P.capacity * P.seatRent
+            + Math.max(0, r.matric - P.capacity) * P.cOver;
         }
         r.sbar = r.matric > 0 ? r.sSum / r.matric : null;
         delete r.sSum;

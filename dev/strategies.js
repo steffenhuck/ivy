@@ -24,7 +24,7 @@ function naive() {
  * cut when empty); maintains all four qualities against decay and spreads
  * half the surplus; keeps a cash reserve. */
 function sensible(P) {
-  const st = { fee: { S: 9, H: 9 }, thr: { S: 55, H: 55 }, last: null };
+  const st = { fee: { S: 7, H: 7 }, thr: { S: 55, H: 55 }, last: null };
   return {
     admissions() {
       if (st.last) {
@@ -43,7 +43,7 @@ function sensible(P) {
     spend(pre, rep, uni) {
       st.last = rep;
       const book = rep.S.offers + rep.H.offers;
-      const avail = Math.max(0, rep.net - 30 - 3 * Math.max(0, book - 14));
+      const avail = Math.max(0, rep.net - 34 - 3 * Math.max(0, book - 14));
       const want = {
         IRS: maintInvest(uni.RS, P), ITS: maintInvest(uni.TS, P),
         IRH: maintInvest(uni.RH, P), ITH: maintInvest(uni.TH, P),
@@ -82,7 +82,7 @@ function sharp(P) {
   // ratchets thresholds up, converting volume into intake quality (kappa
   // feeds teaching, teaching feeds demand, demand feeds fees).
   const st = {
-    fee: { S: 7, H: 7 }, thr: { S: 42, H: 42 }, last: null,
+    fee: { S: 4.5, H: 4.5 }, thr: { S: 38, H: 38 }, last: null,
     dir: { S: 1, H: 1 }, lastRev: { S: null, H: null },
   };
   return {
@@ -152,7 +152,7 @@ function sharp(P) {
       let budget = Math.max(0, rep.net - reserve);
       // Concave g: spreading spend across rounds beats lump-dumping the
       // opening endowment. Cap early rounds; income smooths this later.
-      if (t <= 3) budget = Math.min(budget, 40);
+      if (t <= 3) budget = Math.min(budget, 65);
       // Mild teaching tilt: T enters every student's utility with weight 1
       // (R only theta-weighted) and carries the kappa intake bonus — but R
       // is still ~60% of attraction and half the league score, so the tilt
@@ -282,7 +282,7 @@ function sharpScheme(P) {
       // known in advance, so reserves stay thin.
       const reserve = t >= P.rounds ? 0 : 10;
       let budget = Math.max(0, rep.net - reserve);
-      if (t <= 3) budget = Math.min(budget, 40);
+      if (t <= 3) budget = Math.min(budget, 65);
       const teachShare = 0.58;
       const tea = budget * teachShare, res = budget - tea;
       const revS = rep.S.income - rep.S.overage, revH = rep.H.income - rep.H.overage;
