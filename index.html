@@ -7,122 +7,55 @@ Single standalone file: no external libraries, no network calls, no build step.
 
 CALIBRATION HARNESS REPORT (generated headlessly before the UI was built)
 Seeds: 1..500. Player: Greyfriars College (initial rank 4, worst).
-Two worlds, each with its own scripted Naive/Sensible/Sharp players
-(dev/strategies.js):
-  market - the original economy: per-field fees and thresholds, no
-           intake cap, overage penalty. Sharp prices the captive
-           segment, farms the intake->teaching loop, forecasts offer
-           yield from league position, rations admission once on top.
-  scheme - the National Admissions Scheme: regulated flat fee,
-           student-proposing deferred acceptance per field, declared
-           quotas with a per-seat annual cost. Sharp dives its
-           threshold for the rejection cascade, then under-reports
-           capacity (the Sonmez manipulation) to farm intake calibre,
-           then re-expands late.
+Two worlds, ONE unified cost function (per department, both worlds):
+  C = capacity*seatRent + cOver*max(0, enrolment - capacity)
+    = 8*0.75 + 24*(m-8)+  ‑‑ rent on every seat, filled or not, plus a
+  steep price above capacity that deferred acceptance makes unreachable
+  in the scheme. Fees may exceed cOver (feeCap 25 > 24): the overbooker
+  probe strategy showed overflow-for-profit never materialises ‑‑ demand
+  thins out far below the fee cap and maintenance eats the margin.
+Endowments are world-specific AND private (the public starting position,
+the quality table, is identical): market E=[120,100,130,145] ‑‑ the
+board recapitalises the turnaround colleges; scheme ES=[120,100,95,105]
+‑‑ under guaranteed DA demand a war chest would make early over-spending
+a winning strategy for the diligent and the asleep alike.
+
+Scripted players per world (dev/strategies.js):
+  market: naive static; sensible demand-tracking + maintenance; sharp
+          undercuts the cash cow floor for the captive segment, farms
+          the intake->teaching loop, forecasts offer yield from league
+          position, rations admission once on top.
+  scheme: naive static full quota; sensible quota-tracking; sharp dives
+          the threshold for the rejection cascade, then under-reports
+          capacity (Sonmez manipulation, now a PURE report ‑‑ no rent
+          rebate), then re-expands late.
 
 ‑‑ world: market ‑‑
 strategy  | meanScore | rank1  rank2  rank3  rank4 | score=3 | score>=1 | score<=0 | bankrupt
-naive     |      0.02 |   0.0%   0.0%   1.8%  98.2% |    0.0% |     1.8% |    98.2% |     0.0%
-sensible  |      0.81 |   6.2%   5.4%  52.0%  36.4% |    6.2% |    63.6% |    36.4% |     4.2%
-sharp     |      2.21 |  58.4%   6.2%  33.0%   2.4% |   58.4% |    97.6% |     2.4% |     2.4%
+naive     |      0.22 |   0.2%   0.0%  21.0%  78.8% |    0.2% |    21.2% |    78.8% |    99.8%
+sensible  |      0.41 |   2.4%   1.4%  31.2%  65.0% |    2.4% |    35.0% |    65.0% |     9.8%
+sharp     |      1.60 |  36.2%   9.0%  33.6%  21.2% |   36.2% |    78.8% |    21.2% |     8.6%
 
 ‑‑ world: scheme ‑‑
 strategy  | meanScore | rank1  rank2  rank3  rank4 | score=3 | score>=1 | score<=0 | bankrupt
-naive     |      0.08 |   1.0%   0.4%   3.8%  94.8% |    1.0% |     5.2% |    94.8% |    94.6%
-sensible  |      0.66 |   8.4%  12.4%  16.2%  63.0% |    8.4% |    37.0% |    63.0% |     0.0%
-sharp     |      2.68 |  74.2%  21.8%   1.4%   2.6% |   74.2% |    97.4% |     2.6% |     0.0%
+naive     |      0.74 |  18.0%   4.8%  10.0%  67.2% |   18.0% |    32.8% |    67.2% |    65.6%
+sensible  |      0.49 |   4.6%   7.0%  21.2%  67.2% |    4.6% |    32.8% |    67.2% |     6.8%
+sharp     |      2.13 |  33.8%  54.2%   2.8%   9.2% |   33.8% |    90.8% |     9.2% |     2.6%
 
-Calibration targets, market world (all met; numbers identical to the
-previous report - the scheme was added without touching the market path):
-  - Sharp reaches score 3 (worst -> best) in a healthy share of seeds (~1/3+)
-  - Sensible typically improves rank, rarely reaches the top
-  - Naive stagnates or declines
-  - Bankruptcy possible but rare under Sensible play
+Against the calibration targets:
+  - Sharp reaches score 3 (worst -> best) in ~1/3+ of seeds: met in both
+    worlds (36.2% market, 33.8% scheme).
+  - Sensible rarely reaches the top: met (2.4% / 4.6%). Its improvement
+    rate (~35% / ~33%) is well below the old free-capacity market's 64%:
+    the rent world is harsher for basic play. Its bankruptcy is uncommon
+    rather than rare in the market (9.8%; scheme 6.8%).
+  - Naive: in the market it declines terminally (99.8% bankrupt ‑‑ fixed
+    costs bill the sleeping in both worlds now). In the scheme it
+    survives in a third of seeds and TOPS the table in 18%: a documented
+    institutional finding, not a bug ‑‑ where there is no price, there
+    is no selection; the clearing house does not distinguish the
+    diligent from the lucky.
 
-Scheme world, against the same targets:
-  - Sharp 74% worst -> first: met.
-  - Sensible rarely tops (8.4%): met. Improves in 37% of seeds, less
-    often than the market's 64% - a documented structural property,
-    not a bug: with no price competition, incumbents defend rank with
-    quality investment (reaction functions in the AI personalities),
-    which deters half-hearted challenges. The Scheme protects the
-    competent; it does not promote them.
-  - Naive declines terminally in ~95% of seeds: static play declares
-    seats it never fills and pays the Regulator's rent until broke.
-    The market kills by crowd; the Scheme kills by emptiness.
-  - Bankruptcy under Sensible play: 0.0-0.2% (rare).
-
-FULL PARAMETER SET (also live in DEFAULT_PARAMS below):
-{
-  "world": "market",
-  "rounds": 20,
-  "nApplicants": 40,
-  "capacity": 8,
-  "cOver": 24,
-  "schemeFee": 6.5,
-  "seatCost": 1,
-  "interest": 0.05,
-  "delta": 0.85,
-  "gamma": 1.5,
-  "kappa": 0.14,
-  "sMean": 60,
-  "sSd": 13,
-  "sClampLo": 20,
-  "sClampHi": 100,
-  "bBase": 10,
-  "bSlope": 0.12,
-  "bNoise": 2.6,
-  "bMin": 3,
-  "bMax": 22,
-  "thetaMin": 0,
-  "thetaMax": 1.2,
-  "pStemStart": 0.5,
-  "pStemEta": 0.02,
-  "pStemScale": 10,
-  "pStemMin": 0.3,
-  "pStemMax": 0.7,
-  "aiPrestigeCap": 32,
-  "aiCashHi": 16,
-  "aiCashLo": 11,
-  "unis": [
-    {
-      "name": "Harkness University",
-      "personality": "balanced",
-      "E": 120,
-      "RS": 31,
-      "TS": 30,
-      "RH": 28,
-      "TH": 29
-    },
-    {
-      "name": "Wexford Institute",
-      "personality": "prestige",
-      "E": 100,
-      "RS": 36,
-      "TS": 20,
-      "RH": 28,
-      "TH": 17
-    },
-    {
-      "name": "Millbrook Metropolitan",
-      "personality": "cashcow",
-      "E": 95,
-      "RS": 18,
-      "TS": 24,
-      "RH": 16,
-      "TH": 25
-    },
-    {
-      "name": "Greyfriars College",
-      "personality": "cashcow",
-      "E": 85,
-      "RS": 13,
-      "TS": 16,
-      "RH": 11,
-      "TH": 15
-    }
-  ]
-}
 -->
 <html lang="en">
 <head>
@@ -355,7 +288,8 @@ details.rules li { margin: 5px 0; }
  * Applicant distribution (drawn jointly, per applicant):
  *   - school score s ~ Normal(sMean, sSd), clamped to [sClampLo, sClampHi].
  *   - budget b = bBase + bSlope*(s - sMean) + Normal(0, bNoise), clamped to
- *     [bMin, bMax]. bSlope > 0 gives the mild positive score/budget
+ *     [bMin, bMax] (bMax = feeCap: nothing but demand polices high fees).
+ *     bSlope > 0 gives the mild positive score/budget
  *     correlation required by the spec (richer students score a bit higher).
  *   - taste weight theta ~ Uniform(thetaMin, thetaMax); student values a
  *     university at T_f + theta * R_f for their preferred field f.
@@ -401,16 +335,24 @@ details.rules li { margin: 5px 0; }
  *     independently per field. Each university declares a quota per
  *     department (0..capacity seats) and a threshold below which
  *     applicants are unacceptable; department preferences are by school
- *     score. DA never over-fills a quota, so there is no overage — the
- *     risk is inverted: every DECLARED seat costs seatCost per year,
- *     filled or not (C_t = seatCost * total declared seats). Ledger and
- *     bankruptcy rules are unchanged. In scheme reports, 'applied' counts
- *     distinct students who proposed to the department at any point of the
- *     match, 'offers' echoes the declared quota, and 'cutoff' is the
- *     lowest admitted score (null if none). Student preference ties are
- *     broken by tiny rng perturbations; the scheme consumes the main rng
- *     differently from the market, so the two worlds are separate
+ *     score. DA never over-fills a quota. The quota is a PURE REPORT to
+ *     the clearing house: it carries no cost of its own (capacity
+ *     manipulation a la Sonmez, undiluted). In scheme reports, 'applied'
+ *     counts distinct students who proposed to the department at any point
+ *     of the match, 'offers' echoes the declared quota, and 'cutoff' is
+ *     the lowest admitted score (null if none). Student preference ties
+ *     are broken by tiny rng perturbations; the scheme consumes the main
+ *     rng differently from the market, so the two worlds are separate
  *     reproducibility universes (same seed + same world => same game).
+ *
+ * UNIFIED COST FUNCTION (identical in both worlds): each department's
+ * admissions cost is  C_dept = capacity * seatRent + cOver * max(0, m - capacity),
+ * where m is enrolment — rent on all 8 capacity seats, filled or not,
+ * plus a steep per-head price above capacity. Deferred acceptance never
+ * over-fills, so the second term is reachable only in the market. Fees may
+ * exceed cOver (feeCap > cOver): overflow-for-profit is priced but, as the
+ * calibration shows, demand thins out far below the fee cap and quality
+ * maintenance eats the margin — the temptation exists, the customers do not.
  *
  * Ledger (canonical): E_{t+1} = (E_t + F_t - C_t - I_t) * (1 + r).
  * Bankruptcy: if E_t + F_t - C_t < 0 after market clearing, the university is
@@ -457,18 +399,19 @@ const DEFAULT_PARAMS = {
   rounds: 20,
   nApplicants: 40,
   capacity: 8,          // per department per round, zero marginal cost
-  cOver: 24,            // per-head overage penalty above capacity (market)
-  schemeFee: 6.5,       // regulated flat fee, all fields (scheme)
-  seatCost: 1.0,        // annual cost per DECLARED seat, filled or not (scheme)
+  cOver: 24,            // per-head cost of enrolment above capacity (market only)
+  schemeFee: 5.5,       // regulated flat fee, all fields (scheme)
+  seatRent: 0.75,       // annual cost per capacity seat, filled or not, BOTH worlds
+  feeCap: 25,           // maximum chargeable fee (also strategies' clamp ceiling)
   interest: 0.05,       // r: interest on funds unspent after investment
-  delta: 0.85,          // quality decay factor
+  delta: 0.87,          // quality decay factor
   gamma: 1.5,           // g(I) = gamma * sqrt(I)
   kappa: 0.14,          // intake-quality effect on teaching
 
   // Applicant score distribution
   sMean: 60, sSd: 13, sClampLo: 20, sClampHi: 100,
   // Budgets (mildly correlated with score via bSlope)
-  bBase: 10, bSlope: 0.12, bNoise: 2.6, bMin: 3, bMax: 22,
+  bBase: 10, bSlope: 0.12, bNoise: 3.8, bMin: 3, bMax: 25,
   // Taste for research
   thetaMin: 0, thetaMax: 1.2,
   // STEM preference drift
@@ -476,16 +419,17 @@ const DEFAULT_PARAMS = {
 
   // AI spending discipline (per-round investment budget caps)
   aiPrestigeCap: 32,  // prestige chaser's institutional plan ceiling
-  aiCashHi: 16,       // cash cow's upkeep ceiling
-  aiCashLo: 11,       // cash cow's upkeep floor (drawn from hoard)
+  aiBalancedCap: 46,  // balanced incumbent's total plan ceiling (even in defense)
+  aiCashHi: 11,       // cash cow's upkeep ceiling
+  aiCashLo: 8,        // cash cow's upkeep floor (drawn from hoard)
 
   // Starting universities, ordered by index (initial league rank order).
   // Each has a native AI personality used whenever the player doesn't run it.
   unis: [
-    { name: 'Harkness University',    personality: 'balanced', E: 120, RS: 31, TS: 30, RH: 28, TH: 29 },
-    { name: 'Wexford Institute',      personality: 'prestige', E: 100, RS: 36, TS: 20, RH: 28, TH: 17 },
-    { name: 'Millbrook Metropolitan', personality: 'cashcow',  E: 95,  RS: 18, TS: 24, RH: 16, TH: 25 },
-    { name: 'Greyfriars College',     personality: 'cashcow',  E: 85,  RS: 13, TS: 16, RH: 11, TH: 15 },
+    { name: 'Harkness University',    personality: 'balanced', E: 120, ES: 120, RS: 31, TS: 30, RH: 28, TH: 29 },
+    { name: 'Wexford Institute',      personality: 'prestige', E: 100, ES: 100, RS: 36, TS: 20, RH: 28, TH: 17 },
+    { name: 'Millbrook Metropolitan', personality: 'cashcow',  E: 130, ES: 95,  RS: 18, TS: 24, RH: 16, TH: 25 },
+    { name: 'Greyfriars College',     personality: 'cashcow',  E: 145, ES: 105, RS: 13, TS: 16, RH: 11, TH: 15 },
   ],
 };
 
@@ -641,8 +585,8 @@ function aiPrestige(P) {
     spend(uni, net, P2, rep) {
       const investable = Math.max(0, net - 15);
       const wounded = P2.world === 'scheme' && (uni.rank >= 3 || uni.gapBelow < 5);
-      const drawE = wounded ? 0.25 : 0.15;
-      const cap = wounded ? P2.aiPrestigeCap + 12 : P2.aiPrestigeCap;
+      const drawE = wounded ? 0.3 : 0.15;
+      const cap = wounded ? P2.aiPrestigeCap + 18 : P2.aiPrestigeCap;
       // Bounded ambition: even flush with cash it won't spend beyond its
       // institutional plan (~48/round) — the headroom a challenger needs.
       const budget = Math.min(investable, 1.2 * rep.F + drawE * Math.max(0, uni.E), cap);
@@ -705,8 +649,8 @@ function aiCashCow(P) {
     spend(uni, net, P2, rep) {
       const investable = Math.max(0, net - 15);
       const fight = P2.world === 'scheme' && (uni.rank >= 4 || uni.gapBelow < 4);
-      const lo = fight ? P2.aiCashLo + 14 : P2.aiCashLo;
-      const hi = fight ? P2.aiCashHi + 18 : P2.aiCashHi;
+      const lo = fight ? P2.aiCashLo + 18 : P2.aiCashLo;
+      const hi = fight ? P2.aiCashHi + 24 : P2.aiCashHi;
       const budget = Math.min(investable, Math.max(0.35 * rep.F, lo), hi);
       const each = budget / 4;
       return { IRS: each, ITS: each, IRH: each, ITH: each };
@@ -781,11 +725,19 @@ function aiBalanced(P) {
     spend(uni, net, P2) {
       const avail = Math.max(0, net - 20);
       let tgt = uni.ai.target;
-      // Scheme only: an incumbent knocked off the top of the table defends
-      // it from the hoard — the plan becomes 15% more ambitious until the
-      // natural order is restored.
-      if (P2.world === 'scheme' && (uni.rank >= 2 || uni.gapBelow < 10)) {
-        tgt = { RS: tgt.RS * 1.15, TS: tgt.TS * 1.15, RH: tgt.RH * 1.15, TH: tgt.TH * 1.15 };
+      // Scheme only: the summit defends itself against whoever is coming.
+      // The league table is public, so the incumbent can see the nearest
+      // challenger's total (own total minus the published gap) and aims a
+      // margin above it, hoard permitting — a reaction function in quality,
+      // price being confiscated.
+      if (P2.world === 'scheme' && (uni.rank >= 2 || uni.gapBelow < 12)) {
+        const ownTotal = uni.RS + uni.TS + uni.RH + uni.TH;
+        const challenger = uni.rank >= 2 ? ownTotal + uni.gapAbove : ownTotal - uni.gapBelow;
+        const perQ = Math.max((challenger + 10) / 4, 0);
+        tgt = {
+          RS: Math.max(tgt.RS, perQ), TS: Math.max(tgt.TS, perQ),
+          RH: Math.max(tgt.RH, perQ), TH: Math.max(tgt.TH, perQ),
+        };
       }
       const toward = (Q, T) => {
         const need = (T - P2.delta * Q) / P2.gamma;
@@ -795,10 +747,13 @@ function aiBalanced(P) {
         IRS: toward(uni.RS, tgt.RS), ITS: toward(uni.TS, tgt.TS),
         IRH: toward(uni.RH, tgt.RH), ITH: toward(uni.TH, tgt.TH),
       };
-      const tot = want.IRS + want.ITS + want.IRH + want.ITH;
-      if (tot > avail && tot > 0) {
-        const k = avail / tot;
+      let tot = want.IRS + want.ITS + want.IRH + want.ITH;
+      // Even Harkness has a senate: the plan, defensive or not, is capped.
+      const cap = Math.min(avail, P2.aiBalancedCap);
+      if (tot > cap && tot > 0) {
+        const k = cap / tot;
         for (const q in want) want[q] *= k;
+        tot = cap;
       }
       return want;
     },
@@ -823,7 +778,8 @@ class Game {
 
     this.unis = P.unis.map((u, i) => ({
       index: i, name: u.name,
-      E: u.E, RS: u.RS, TS: u.TS, RH: u.RH, TH: u.TH,
+      E: (P.world === 'scheme' && u.ES !== undefined) ? u.ES : u.E,
+      RS: u.RS, TS: u.TS, RH: u.RH, TH: u.TH,
       broke: false, lastReport: null, ai: null, controller: null,
     }));
 
@@ -932,6 +888,8 @@ class Game {
       u.rank = row.rank;
       const below = table.find(r => r.rank === row.rank + 1);
       u.gapBelow = below ? row.total - below.total : Infinity;
+      const above = table.find(r => r.rank === row.rank - 1);
+      u.gapAbove = above ? above.total - row.total : 0;
     }
     if (this.round > 1) this.rankHistory.push(table.find(r => r.index === this.playerIndex).rank);
     this.phase = 'admissions';
@@ -982,7 +940,7 @@ class Game {
           r.offers = q; // declared quota
           r.matric = held[u.index].length;
           r.income = r.matric * P.schemeFee;
-          r.overage = q * P.seatCost; // the seats bill
+          r.overage = P.capacity * P.seatRent; // rent on all capacity seats, report-independent
           for (const p of held[u.index]) r.sSum += p.a.s;
           r.cutoff = r.matric > 0 ? Math.min(...held[u.index].map(p => p.a.s)) : null;
         }
@@ -1019,7 +977,10 @@ class Game {
     for (const u of this.unis) {
       for (const f of ['S', 'H']) {
         const r = reports[u.index][f];
-        if (!scheme) r.overage = Math.max(0, r.matric - P.capacity) * P.cOver;
+        if (!scheme) {
+          r.overage = P.capacity * P.seatRent
+            + Math.max(0, r.matric - P.capacity) * P.cOver;
+        }
         r.sbar = r.matric > 0 ? r.sSum / r.matric : null;
         delete r.sSum;
       }
@@ -1400,7 +1361,7 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
         </button>
         <button class="edition ${chosenWorld === 'scheme' ? 'on' : ''}" data-w="scheme">
           <b>The National Admissions Scheme</b>
-          <span>Fees fixed by the Regulator at ${money(P.schemeFee)} a head. A central match assigns students; you declare seats and standards. Every declared seat costs ${money(P.seatCost)} a year, filled or not.</span>
+          <span>Fees fixed by the Regulator at ${money(P.schemeFee)} a head. A central match assigns students; you declare a quota and a standard. Same seats, same rent &mdash; but the match never sends you a student too many.</span>
         </button>
       </div>
       <div class="prospect">${rows}</div>
@@ -1408,11 +1369,11 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
         <summary>How the game is played &mdash; the standing rules</summary>
         <div class="card-body">
           <ul>
-            <li><b>Two editions.</b> In <b>the Open Market</b> the rules below apply as written. In <b>the National Admissions Scheme</b>, fees are fixed by the Regulator at ${money(P.schemeFee)} for everyone and means do not matter; instead of making offers you declare <b>seats</b> (0&ndash;${P.capacity} per department) and a threshold, a central algorithm (deferred acceptance) assigns each student to the best-ranked place that will hold them, quotas are never exceeded &mdash; and every declared seat costs <b>${money(P.seatCost)}</b> a year, filled or not. The Market kills by crowd; the Scheme kills by emptiness.</li>
+            <li><b>Two editions, one cost of seats.</b> In both worlds each department keeps ${P.capacity} seats, and every seat costs <b>${money(P.seatRent)}</b> a year, filled or not. In <b>the Open Market</b> you set fees and thresholds, applicants go where they can afford, and every acceptance must be honoured &mdash; each student beyond the ${P.capacity} seats costs <b>${money(P.cOver)}</b>, and you cannot refuse them. In <b>the National Admissions Scheme</b>, fees are fixed by the Regulator at ${money(P.schemeFee)} for everyone, means do not matter, and a central algorithm (deferred acceptance) assigns each student to the best-ranked department that will hold them: you report a quota (0&ndash;${P.capacity}) and a threshold, and the match never exceeds the quota. Same cost of seats everywhere; the Market can overflow them, the Scheme can only leave them empty.</li>
             <li><b>Each year, two decisions.</b> First the <b>Admissions Desk</b>: for each field (STEM and HSS) you set an entry <b>threshold</b> (every applicant at or above it receives an offer) and a <b>fee</b>. Then the <b>Bursar&rsquo;s Office</b>: you invest in research and teaching quality, per field.</li>
             <li><b>Applicants.</b> Forty fresh school-leavers apply each year. Each has a school score, a preferred field, a taste for research prestige, and a private budget. They apply everywhere they can afford, and enrol wherever their offers look best (teaching quality plus their personal weight on research). They stay one year, pay one fee, and leave.</li>
             <li><b>Capacity.</b> Each department teaches up to <b>8</b> students at no extra cost. You must take everyone who accepts your offer; each student beyond 8 costs <b>${money(P.cOver)}</b> in emergency provision. Over-offering is the classic way to die.</li>
-            <li><b>Money.</b> Fees are paid up front &mdash; the year&rsquo;s income sits in the endowment before the Bursar spends a penny, and whatever he does not spend earns ${Math.round(P.interest * 100)}% interest, fees included. If your endowment cannot cover the year's overage bill, the College is bankrupt and the game ends.</li>
+            <li><b>Money.</b> Fees are paid up front &mdash; the year&rsquo;s income sits in the endowment before the Bursar spends a penny, and whatever he does not spend earns ${Math.round(P.interest * 100)}% interest, fees included. If your endowment cannot cover the year&rsquo;s seats bill, the College is bankrupt and the game ends.</li>
             <li><b>Quality.</b> Investment raises quality with diminishing returns, and takes effect the following year. All quality decays ${Math.round((1 - P.delta) * 100)}% a year if unattended. Teaching quality also drifts with the calibre of the students you actually admit, relative to the national average of ${P.sMean}.</li>
             <li><b>Fashion.</b> Field preferences drift slowly toward whichever field boasts higher research quality across the sector.</li>
             <li><b>Information.</b> The League table is public. Rivals&rsquo; fees, thresholds, enrolments and endowments are not. The Ledger publishes no figures on family means &mdash; though a shrewd reader may suspect that money and marks travel together, and your own books reveal, year by year, who could afford you.</li>
@@ -1544,7 +1505,7 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
       const last = u.lastReport ? u.lastReport[f] : null;
       const secondCtl = scheme
         ? `<div class="ctl">
-            <span class="lbl">Seats declared (${money(P.seatCost)} each, filled or not)</span>
+            <span class="lbl">Quota reported to the Scheme (0&ndash;${P.capacity})</span>
             <div class="stepper" data-kind="q" data-f="${f}">
               <button data-d="-8">&#171;</button><button data-d="-1">&minus;</button>
               <span class="val num" id="q${f}">${dec['q' + f]}</span>
@@ -1598,8 +1559,8 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
             <div class="card-body">
               <div class="fields">${fieldBox('S')}${fieldBox('H')}</div>
               <div class="notice warn">${scheme
-                ? `The Scheme&rsquo;s algorithm assigns each student to the best-ranked department that will hold them; your quota is never exceeded. But the Regulator&rsquo;s rent applies to every declared seat &mdash; ${money(P.seatCost)} a year, filled or not. Empty seats are pure loss.`
-                : `Capacity is ${P.capacity} per department. Every offer that is accepted must be honoured; each enrolee beyond ${P.capacity} costs ${money(P.cOver)}. Applicants who can afford you and clear your threshold get an offer &mdash; all of them.`}</div>
+                ? `The Scheme&rsquo;s algorithm assigns each student to the best-ranked department that will hold them; your quota is never exceeded. The rent &mdash; ${money(P.seatRent)} on each of your ${P.capacity * 2} seats &mdash; falls due regardless: seats the match does not fill are pure loss, and the quota costs nothing to report.`
+                : `Capacity is ${P.capacity} per department, and each seat costs ${money(P.seatRent)} a year, filled or not. Every offer that is accepted must be honoured; each enrolee beyond ${P.capacity} costs ${money(P.cOver)}. Applicants who can afford you and clear your threshold get an offer &mdash; all of them.`}</div>
               <button class="btn oxblood" id="post">${scheme ? 'File the return with the Scheme' : 'Post the prospectus &amp; make offers'}</button>
             </div>
           </section>
@@ -1618,7 +1579,7 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
         dec['q' + f] = Math.max(0, Math.min(P.capacity, Math.round(dec['q' + f] + d)));
         el('#q' + f).textContent = dec['q' + f];
       } else {
-        dec['fee' + f] = Math.max(0, Math.min(20, Math.round((dec['fee' + f] + d) * 2) / 2));
+        dec['fee' + f] = Math.max(0, Math.min(P.feeCap, Math.round((dec['fee' + f] + d) * 2) / 2));
         el('#fee' + f).textContent = money(dec['fee' + f]);
       }
     }));
@@ -1665,10 +1626,10 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
             <div class="card-head"><span>The year&rsquo;s admissions</span><span class="kicker">confidential</span></div>
             <div class="card-body">
               <div class="scrollx"><table class="report">
-                <thead><tr><th>Field</th><th>${inScheme() ? 'Proposals' : 'Applied'}</th><th>${inScheme() ? 'Seats' : 'Offers'}</th><th>${inScheme() ? 'Placed' : 'Enrolled'}</th><th>Avg</th><th>Fees</th><th>${inScheme() ? 'Seats bill' : 'Overage'}</th></tr></thead>
+                <thead><tr><th>Field</th><th>${inScheme() ? 'Proposals' : 'Applied'}</th><th>${inScheme() ? 'Seats' : 'Offers'}</th><th>${inScheme() ? 'Placed' : 'Enrolled'}</th><th>Avg</th><th>Fees</th><th>Seats bill</th></tr></thead>
                 <tbody>
                   ${reportRow('S')}${reportRow('H')}
-                  <tr class="sumrow"><td>Net of ${inScheme() ? 'the seats bill' : 'overage'}</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
+                  <tr class="sumrow"><td>Net of the seats bill</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
                 </tbody>
               </table></div>
               <div class="notice">${intakeRemark()}</div>
@@ -1679,7 +1640,7 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
           <section class="card bursar">
             <div class="card-head"><span>Step II &mdash; The Bursar&rsquo;s Office</span><span class="kicker">investment</span></div>
             <div class="card-body">
-              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C > 0 ? ` &minus; ${inScheme() ? 'seats bill' : 'overage'} ${money(rep.C)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
+              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C > 0 ? ` &minus; seats bill ${money(rep.C)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
               <div class="budgetline" style="border-top:1px dotted var(--rule)"><span>Uncommitted (earns ${Math.round(P.interest * 100)}%, fees included)</span><b class="num" id="remain">${money(budget)}</b></div>
               ${invRow('IRS', 'Research', 'STEM')}
               ${invRow('ITS', 'Teaching', 'STEM', true)}
@@ -1795,7 +1756,7 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
     // any of the morning's money news). opening + F - C - I + interest = E.
     const opening = rep.net - rep.F + rep.C;
     const hadMoneyNews = (pre.events || []).some(e => e.index === game.playerIndex && e.deltaE !== undefined);
-    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C > 0 ? `, ${inScheme() ? 'the seats bill took' : 'overage took'} ${money(rep.C)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
+    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C > 0 ? `, the seats bill took ${money(rep.C)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
 
     // Rank prose, with variants; name rivals passed or passing.
     const newRankOf = i => newTable.find(r => r.index === i).rank;
@@ -1880,7 +1841,7 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
         const names = empty.map(f => FIELD_SHORT[f]).join(' and ');
         bits.push(pick([
           `Over half of ${names}&rsquo;s declared seats stood empty &mdash; the algorithm consulted the applicants, and the applicants had other ideas`,
-          `${names} declared seats the match did not fill; the Regulator&rsquo;s rent, the Ledger notes, applies to ambition as well as to students`,
+          `${names} reported seats the match did not fill; the rent, the Ledger notes, is indifferent to the distinction`,
         ]));
       }
       return bits.length ? bits.join('; ') + '.' : 'A quiet year for the registry: intake near the national average.';
@@ -1951,7 +1912,7 @@ if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;
     if (o.bankrupt) {
       verdict = 'The Ledger regrets to report';
       headline = `${esc(u.name)} is bankrupt`;
-      body = `The overage bill could not be met, the doors are chained, and the porters have kept the good chairs. Year ${game.round} of ${P.rounds}.`;
+      body = `The seats bill could not be met, the doors are chained, and the porters have kept the good chairs. Year ${game.round} of ${P.rounds}.`;
     } else if (o.resigned) {
       verdict = 'From the appointments column';
       headline = 'A resignation at ' + esc(u.name);

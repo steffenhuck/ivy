@@ -16,14 +16,14 @@
 \maketitle
 
 \begin{abstract}
-\noindent Four universities compete for forty school-leavers, once a year, for twenty years. In one world they set their own fees and must honour every acceptance; in the other a regulator fixes the fee and a clearing house assigns students by deferred acceptance against declared quotas. \game{} is a browser game in which a player takes over the worst of the four under either institution and tries to reach the top of a published league table. These notes set out the common environment, the two market designs, and a calibration by scripted players of three skill levels. The market kills by crowd; the scheme kills by emptiness.
+\noindent Four universities compete for forty school-leavers, once a year, for twenty years. Seats cost rent in both worlds, filled or not; in one world colleges set their own fees and must honour every acceptance, in the other a regulator fixes the fee and a clearing house assigns students by deferred acceptance against reported quotas. \game{} is a browser game in which a player takes over the worst of the four under either institution and tries to reach the top of a published league table. These notes set out the common environment, the two market designs, and a calibration by scripted players of three skill levels. The market kills by crowd; the scheme kills by emptiness.
 \end{abstract}
 
 \section{Introduction}
 
 You have accepted the worst chair in academia. Greyfriars College is fourth of four in the league table that \emph{The Morning Ledger} publishes every autumn; its endowment would not survive two bad roofs; its teaching is tired and its research is a rumour. The governing board, out of options and nearly out of money, asks only that you climb.
 
-How you may climb depends on the world. In the first world you set your own fees, one for each of your two departments. Applicants apply wherever they can afford, you make an offer to every applicant above a bar of your choosing, and every offer that is accepted must be honoured---the first eight students in a department are cheap, and the ninth is ruinously dear. In the second world the fee has been confiscated by a regulator and set equal for everyone. A national clearing house runs the admissions round: you declare how many seats you will staff and how low you will stoop, an algorithm assigns each student to the best place that will hold them, and the rent on every declared seat falls due whether a student sits in it or not.
+In either world each of your two departments keeps eight seats, and every seat costs rent whether a student sits in it or not. How you may climb depends on what else the world permits. In the first world you set your own fees. Applicants apply wherever they can afford, you make an offer to every applicant above a bar of your choosing, and every offer that is accepted must be honoured---the ninth student in a department, the one without a seat, costs a small fortune in emergency provision. In the second world the fee has been confiscated by a regulator and set equal for everyone. A national clearing house runs the admissions round: you report a quota and a standard, an algorithm assigns each student to the best place that will hold them, and the quota is never exceeded. The market can overflow your seats; the scheme can only leave them empty.
 
 \game{} is a browser game in which both worlds can be played, from the same starting position, against the same opponents. These notes are its documentation, written for economists.
 
@@ -35,7 +35,7 @@ The notes proceed as follows. Section~\ref{sec:env} sets out the environment com
 
 \paragraph{Universities.} There are four universities, indexed $i$. Each carries five state variables: an endowment $E^i$ and four qualities---research and teaching in each of two fields, STEM ($S$) and the humanities and social sciences ($H$)---written $R_S^i, T_S^i, R_H^i, T_H^i$. All money is in thousands of pounds. The league table ranks universities by the sum of the four qualities; ties are broken by endowment, then by a fixed index. The table is public. Endowments, fees, thresholds, quotas, and enrolments are not. One university is run by the player; the other three are run by heuristic personalities described in Appendix~\ref{app:ai}. Starting states appear in Table~\ref{tab:start}.
 
-\paragraph{Students.} Each year forty fresh applicants are drawn. An applicant is a quadruple $(s, b, \theta, f)$. The school score is $s \sim N(60, 13^2)$, truncated to $[20,100]$. The budget is $b = 10 + 0.12\,(s - 60) + \varepsilon$ with $\varepsilon \sim N(0, 2.6^2)$, truncated to $[3,22]$; money and marks travel together, mildly. The taste for research is $\theta \sim U[0, 1.2]$. The field is assigned by stratification: exactly $\mathrm{round}(40\,p_t)$ applicants prefer STEM, where $p_1 = \tfrac12$ and
+\paragraph{Students.} Each year forty fresh applicants are drawn. An applicant is a quadruple $(s, b, \theta, f)$. The school score is $s \sim N(60, 13^2)$, truncated to $[20,100]$. The budget is $b = 10 + 0.12\,(s - 60) + \varepsilon$ with $\varepsilon \sim N(0, 3.8^2)$, truncated to $[3,25]$; money and marks travel together, mildly, and the truncation point equals the fee cap, so nothing but demand polices a high fee. The taste for research is $\theta \sim U[0, 1.2]$. The field is assigned by stratification: exactly $\mathrm{round}(40\,p_t)$ applicants prefer STEM, where $p_1 = \tfrac12$ and
 \[
 p_{t+1} \;=\; \mathrm{clamp}\!\left(p_t + 0.02\,\tanh\!\Big(\tfrac{\overline{R}_{S,t} - \overline{R}_{H,t}}{10}\Big)\right)\!,
 \qquad p_t \in [0.3, 0.7],
@@ -47,9 +47,15 @@ so that fashion drifts gently toward whichever field the sector researches bette
 R' \;=\; \delta R + \gamma \sqrt{I_R}, \qquad
 T' \;=\; \delta T + \gamma \sqrt{I_T} + \kappa\,(\bar{s} - 60)\cdot\mathbf{1}\{\text{anyone admitted}\},
 \]
-with decay $\delta = 0.85$, productivity $\gamma = 1.5$, and intake effect $\kappa = 0.14$, where $\bar{s}$ is the department's mean admitted score. Qualities are floored at zero. Decay is deliberately brutal: an unattended quality loses fifteen per cent a year, so standing still is a policy with consequences.
+with decay $\delta = 0.87$, productivity $\gamma = 1.5$, and intake effect $\kappa = 0.14$, where $\bar{s}$ is the department's mean admitted score. Qualities are floored at zero. Decay is deliberately brutal: an unattended quality loses thirteen per cent a year, so standing still is a policy with consequences.
 
-\paragraph{The ledger.} Fees are paid up front. With fee income $F_t$, institution-specific costs $C_t$ (overage in the market, seat rent in the scheme), and investment $I_t$,
+\paragraph{The cost of seats.} Both worlds share one cost function. A department with enrolment $m$ pays
+\[
+C \;=\; 8\rho \;+\; c\,\max(0,\, m - 8), \qquad \rho = 0.75, \quad c = 24:
+\]
+rent on all eight seats, filled or not, plus a steep price per student beyond them. Deferred acceptance never over-fills a quota, so the second term is reachable only in the market. Fees may exceed $c$ (the cap is 25): overflow-for-profit is priced, not forbidden---and, as Section~\ref{sec:calib} reports, never observed.
+
+\paragraph{The ledger.} Fees are paid up front. With fee income $F_t$, seat costs $C_t$ as above, and investment $I_t$,
 \[
 E_{t+1} \;=\; \big(E_t + F_t - C_t - I_t\big)\,(1 + r), \qquad r = 0.05 .
 \]
@@ -57,11 +63,11 @@ Bankruptcy is checked after admissions and before spending: if $E_t + F_t - C_t 
 
 \paragraph{Events.} Each year each solvent college suffers an event with probability $\tfrac13$, drawn from a weighted table of thirty-one shocks: money shocks between $-26$ and $+32$, quality shocks between $-3$ and $+4$. Events are drawn from a random-number stream separate from the one generating applicants, so the two sources of luck never contaminate one another; money losses are truncated so that no event pushes an endowment below~5. Events fire before the year's league table is computed. The morning's news is news.
 
-\paragraph{Capacity.} Each department teaches up to eight students a year at zero marginal cost. What happens beyond eight is precisely where the two worlds part.
+\paragraph{Endowments.} Starting endowments are world-specific, and deliberately so; they are also private, so the public starting position---the quality table---is identical across worlds. The market's bottom college holds a war chest (Table~\ref{tab:start}): the board recapitalises a turnaround, and the chest finances patient learning of the demand curve against the rent. Under the scheme the same chest would be poison to the calibration rather than to the college: with demand guaranteed by the clearing house, early over-spending becomes a winning strategy for the diligent and the asleep alike. The value of a war chest depends on the institution it is spent in.
 
 \section{The first institution: the market}\label{sec:market}
 
-In the market world a university chooses, for each field, a fee $\varphi_f \ge 0$ and an admission threshold $\tau_f$. Clearing is simultaneous and mechanical. Every applicant applies to every university whose fee for her field she can afford ($\varphi_f \le b$). Every university makes an offer to every applicant to a field whose score meets that field's bar ($s \ge \tau_f$). Every applicant holding at least one offer enrols at the offer maximising $T_f + \theta R_f$, ties broken at random; applicants without offers exit without consequence. Offers are unconditional: a university takes every student who accepts. Each enrolee beyond the eighth in a department costs $c = 24$---roughly three times a typical fee---so oversubscription is not a windfall but an accident, and occasionally an obituary.
+In the market world a university chooses, for each field, a fee $\varphi_f \ge 0$ and an admission threshold $\tau_f$. Clearing is simultaneous and mechanical. Every applicant applies to every university whose fee for her field she can afford ($\varphi_f \le b$). Every university makes an offer to every applicant to a field whose score meets that field's bar ($s \ge \tau_f$). Every applicant holding at least one offer enrols at the offer maximising $T_f + \theta R_f$, ties broken at random; applicants without offers exit without consequence. Offers are unconditional: a university takes every student who accepts. Each enrolee beyond the eighth in a department costs $c = 24$---roughly three times a typical fee---so oversubscription is not a windfall but an accident, and occasionally an obituary. The fee cap sits at 25, above $c$, so overflow-for-profit is available in principle; a probe strategy built to try it (price just above $c$, bar on the floor, never ration) went bankrupt in over ninety per cent of seeds at every cost configuration tested and harvested essentially no overflow. To profit from a crowd one must first be crowded, and by the time a college is attractive enough to overflow at will, maintaining the quality that made it attractive has eaten the margin. The temptation exists; the customers do not.
 
 Two features make this a game rather than an exercise. First, the demand curve is hidden: the player sees the cohort's score statistics but never its budgets, and must learn by experiment what the market will bear. The bottom college's central discovery is that it is a local monopolist over a captive segment---the students every rival rejects or prices out---and that the revenue-maximising fee for captives is interior: pricing at the floor buys almost no additional demand. Second, the accepted-offer rule creates a tail risk with a memorable signature. An offer book calibrated to a thirty per cent yield converts at ninety when a quality crossing redirects student choice, and the overage bill from one good year can end the college. The scripted sharp player forecasts its yield from the public league table and rations admission the moment it becomes attractive; human players learn the same lesson, usually the expensive way.
 
@@ -69,13 +75,13 @@ One remark for the theorist. The market's clearing is itself a single round of s
 
 \section{The second institution: the scheme}\label{sec:scheme}
 
-In the scheme world the fee is fixed at $\bar{\varphi} = 6.5$ for every field and every college, admission is means-blind, and budgets are irrelevant. A university chooses, for each field, a quota $q_f \in \{0, 1, \ldots, 8\}$ and a threshold $\tau_f$. Every declared seat costs rent $\rho = 1$ per year, filled or not.
+In the scheme world the fee is fixed at $\bar{\varphi} = 5.5$ for every field and every college, admission is means-blind, and budgets are irrelevant. A university chooses, for each field, a quota $q_f \in \{0, 1, \ldots, 8\}$ and a threshold $\tau_f$. The seat costs of Section~\ref{sec:env} apply unchanged---the rent falls on all eight seats regardless---so the quota is a pure report to the clearing house: it costs nothing to state and binds only the match.
 
 Matriculation is decided by student-proposing deferred acceptance (Gale and Shapley, 1962), run independently for each field. Students rank the four departments of their field strictly by $T_f + \theta R_f$, with vanishing random perturbations guaranteeing strictness. Departments hold responsive preferences: they rank students strictly by score, treat students below $\tau_f$ as unacceptable, and hold at most $q_f$. The algorithm is the standard one. Unmatched students propose down their lists; a department holds the best acceptable proposals up to its quota and rejects the rest, displacing previously held students where necessary; nothing is final until no rejected student has anywhere left to propose. The outcome is the student-optimal stable matching, unique under strict preferences and independent of the order in which proposals are processed (McVitie and Wilson, 1971). The implementation was audited mechanically: across three thousand randomly generated instances the produced matchings contain no blocking pair of either kind---no student preferring a department with a free acceptable seat, and no justified envy---and across twelve hundred simulated game rounds no quota is ever exceeded.
 
-Two theoretical properties of this design do the game's work. The mechanism is strategy-proof for students (Roth, 1982)---fitting, since the students are honest automata---but no stable mechanism is strategy-proof for the colleges (Roth, 1985), and this one is manipulable in a specific, profitable direction: by capacities (S\"onmez, 1997). A department that declares fewer seats than its demand holds only its best proposers; its intake calibre rises, the $\kappa$ term feeds its teaching, better teaching attracts better proposers, and the seats it did not declare were rent it did not pay. The scripted sharp player's mid-game is precisely this manipulation, entered once it has any demand worth rationing and abandoned late, when league points want volume. A player who finds the move unaided has discovered a theorem, and will be pleased to hear it.
+Two theoretical properties of this design do the game's work. The mechanism is strategy-proof for students (Roth, 1982)---fitting, since the students are honest automata---but no stable mechanism is strategy-proof for the colleges (Roth, 1985), and this one is manipulable in a specific, profitable direction: by capacities (S\"onmez, 1997). A department that reports fewer seats than its demand holds only its best proposers; its intake calibre rises, the $\kappa$ term feeds its teaching, and better teaching attracts better proposers. Since the rent is owed on the seats either way, the manipulation here is undiluted by economy: shrinking the report buys calibre at the price of forgone fees, exactly as the theory has it. The scripted sharp player's mid-game is precisely this manipulation, entered once it has any demand worth rationing and abandoned late, when league points want volume. A player who finds the move unaided has discovered a theorem, and will be pleased to hear it.
 
-The scheme also inverts the market's mortality. Deferred acceptance never over-fills a quota, so there is no overage and no yield risk; the ruin instrument is the rent. A college that declares sixteen seats and fills three pays for sixteen. Static play, harmless in the market, is here a slow execution.
+The scheme also removes the market's tail risk. Deferred acceptance never over-fills a quota, so there is no overage and no yield lottery; what remains is the rent, which both worlds now share, and which the scheme's guaranteed demand makes easier to pay. Ruin under the scheme is reserved for the college that cannot fill what it keeps---and, as the next section shows, the same guarantee that spares the diligent also spares the asleep.
 
 \section{Scripted play and calibration}\label{sec:calib}
 
@@ -88,13 +94,13 @@ Each world is calibrated with three scripted players run from the worst starting
  & & mean & \multicolumn{1}{c}{finishes} & improves & stagnates or & bankrupt \\
 world & strategy & score & 1st (\%) & (\%) & declines (\%) & (\%) \\
 \midrule
-market & naive    & 0.02 & 0.0  & 1.8  & 98.2 & 0.0 \\
-       & sensible & 0.81 & 6.2  & 63.6 & 36.4 & 4.2 \\
-       & sharp    & 2.21 & 58.4 & 97.6 & 2.4  & 2.4 \\
+market & naive    & 0.22 & 0.2  & 21.2 & 78.8 & 99.8 \\
+       & sensible & 0.41 & 2.4  & 35.0 & 65.0 & 9.8 \\
+       & sharp    & 1.60 & 36.2 & 78.8 & 21.2 & 8.6 \\
 \addlinespace
-scheme & naive    & 0.08 & 1.0  & 5.2  & 94.8 & 94.6 \\
-       & sensible & 0.66 & 8.4  & 37.0 & 63.0 & 0.0 \\
-       & sharp    & 2.68 & 74.2 & 97.4 & 2.6  & 0.0 \\
+scheme & naive    & 0.74 & 18.0 & 32.8 & 67.2 & 65.6 \\
+       & sensible & 0.49 & 4.6  & 32.8 & 67.2 & 6.8 \\
+       & sharp    & 2.13 & 33.8 & 90.8 & 9.2  & 2.6 \\
 \bottomrule
 \end{tabular}
 \caption{Calibration over 500 seeded histories per cell, player at the worst start (rank 4). Score $=$ initial rank $-$ final rank; ``improves'' is score $\ge 1$.}
@@ -107,13 +113,13 @@ scheme & naive    & 0.08 & 1.0  & 5.2  & 94.8 & 94.6 \\
 \toprule
 world & strategy & s.d.\ of score & median escape year & never escapes (\%) \\
 \midrule
-market & naive    & 0.13 & ---  & 93 \\
-       & sensible & 0.79 & 13   & 37 \\
-       & sharp    & 0.98 & 8    & 4  \\
+market & naive    & 0.43 & 3    & 58 \\
+       & sensible & 0.64 & 7    & 61 \\
+       & sharp    & 1.18 & 4    & 8  \\
 \addlinespace
-scheme & naive    & 0.37 & ---  & 95 \\
-       & sensible & 0.99 & 10   & 62 \\
-       & sharp    & 0.63 & 5    & 3  \\
+scheme & naive    & 1.17 & 7    & 66 \\
+       & sensible & 0.82 & 10   & 66 \\
+       & sharp    & 0.85 & 4    & 6  \\
 \bottomrule
 \end{tabular}
 \caption{Difficulty metrics, same 500 seeds. ``Escape'' is the first year the player leaves rank 4; medians are over escaping seeds.}
@@ -122,15 +128,15 @@ scheme & naive    & 0.37 & ---  & 95 \\
 
 A caveat belongs up front, stated once. Comparing institutions through algorithm performance confounds how hard the world is with how good the hand-crafted algorithm happens to be in it. The naive and sensible rows are comparable by construction---the same abstract recipe mapped onto each world's instruments. The sharp rows are world-specific by design; they measure each institution's exploitability ceiling as probed with comparable effort, and nothing stronger is claimed. A cleaner instrument---one identical meta-optimiser given equal compute in each world---is straightforward within the harness and is left for a later vintage of these notes.
 
-With that caveat, three regularities survive. First, the skill gradient has a different shape. The market rewards each increment of sophistication smoothly ($+0.79$ in mean score from naive to sensible, $+1.40$ from sensible to sharp); the scheme is a cliff ($+0.58$, then $+2.02$). Basic competence buys less in the scheme, mastery buys more: the scheme has both the higher skill threshold and the higher ceiling. Second, luck changes address. For the sharp player the scheme is the calmer world (score s.d.\ 0.63 against 0.98; median escape in year 5 against year 8): deferred acceptance abolishes the market's yield lottery. For the sensible player it is the reverse (0.99 against 0.79, and 62 per cent never escape): the incumbents in the scheme defend rank with quality investment---their only defence, price being confiscated---and whether a middling challenge lands against a defending incumbent is substantially a matter of draws. Third, ruin changes address too, and completely. The market's bankruptcies sit in the adaptive rows and are accidents of ambition, overage arriving with success; the scheme's sit almost entirely in the static row and are the wages of passivity, rent collected on empty seats for twenty years. No adaptive scheme player went bankrupt in a thousand runs.
+With that caveat, three regularities survive. First, the rent bills the sleeping in both worlds, but only the market executes them: static play goes bankrupt in effectively every market seed (99.8 per cent), while under the scheme a third of static colleges survive the early grind---and the survivors prosper. Indeed the scheme's naive row has a \emph{higher} mean score than its sensible row (0.74 against 0.49) and tops the table in 18 per cent of seeds, on the largest score variance of any cell (s.d.\ 1.17): the static full-quota college is a gamble, dead or crowned, and the clearing house does not distinguish the diligent from the lucky. Where there is no price, there is no selection; prudence buys survival (bankruptcy 6.8 against 65.6 per cent) but not distinction. Second, mastery pays everywhere and calm is scheme-specific: sharp play reaches the top in a third of seeds in both worlds (36.2 and 33.8 per cent), but with much less noise under the scheme (s.d.\ 0.85 against 1.18, bankruptcy 2.6 against 8.6)---deferred acceptance abolishes the market's yield lottery, and what remains of sharp risk in the market is the accepted-offer rule meeting a quality crossing. Third, basic competence has become hard graft: sensible improves in only about a third of seeds in either world, against nearly two-thirds in the rent-free market of these notes' first vintage. A standing bill of twelve a year, set against the bottom college's early revenue of twenty to fifty, converts the middle of the skill distribution from a comfortable living into a struggle. The rent spares nobody its arithmetic.
 
 \section{Discussion}\label{sec:disc}
 
 The calibration is a designer's equilibrium, not nature's. The opponents are heuristics, tuned until the game's difficulty targets held; the numbers in Tables~\ref{tab:calib} and~\ref{tab:diff} characterise \game{}, not British higher education. The reader should know exactly what is, and is not, being claimed: the game does not adjudicate between the institutions, and its parameters were chosen for play, not estimated from anything.
 
-What the comparison does teach is structural, and it survives the caveat. Remove the price instrument, and competition does not disappear---it migrates entirely into quality, where incumbents with hoarded endowments hold the high ground; the resulting reaction functions deter exactly the half-hearted challenges that the market, indifferently, lets through. Guarantee demand through a clearing house, and inattention becomes the deadliest strategy in either world, because fixed costs bill the sleeping. And publish everyone's quality while hiding everyone's money, and the remaining information rents sit precisely where each institution's hidden margin is: the market's player learns a demand curve, the scheme's player learns her own position in forty preference lists she never sees.
+What the comparison does teach is structural, and it survives the caveat. Remove the price instrument, and competition does not disappear---it migrates entirely into quality, where incumbents with hoarded endowments hold the high ground; the resulting reaction functions deter the half-hearted challenges that the market, indifferently, lets through, yet they cannot tell a compounding gambler from a compounding talent. Guarantee demand through a clearing house, and the fixed cost of seats stops selecting: the market forecloses on the passive, the scheme merely invoices them, and some of them drift to the top of the table with no one entitled to object. And the endowment experiment deserves its own line: the same war chest that finances patient learning under price competition finances indiscriminate expansion under guaranteed demand---which is why the two worlds start with different money and identical published tables. What capital is worth depends on the institution it is spent in.
 
-For the classroom the game has one further use. Institutions are usually taught as rules and compared as theorems; here they are compared as lived experience, twenty minutes a world. A student who has died of overage understands the accepted-offer rule differently thereafter; a student who has paid three years' rent on empty seats holds views on capacity declaration; and a student who has beaten the scheme by shrinking has re-derived S\"onmez (1997) with her own hands. The theorems, of course, were always there. The game merely arranges for them to be discovered in anger.
+For the classroom the game has one further use. Institutions are usually taught as rules and compared as theorems; here they are compared as lived experience, twenty minutes a world. A student who has died of overage understands the accepted-offer rule differently thereafter; a student who has paid three years' rent on empty seats holds views on the cost of ambition; a student who has watched an idle college drift to the top of the Scheme holds views on selection; and a student who has beaten the scheme by shrinking has re-derived S\"onmez (1997) with her own hands. The theorems, of course, were always there. The game merely arranges for them to be discovered in anger.
 
 \appendix
 
@@ -145,15 +151,16 @@ symbol & value & role & world \\
 $T$ & 20 & years per game & both \\
 $n$ & 40 & applicants per year & both \\
 --- & 8 & department capacity (cheap seats) & both \\
-$c$ & 24 & overage cost per excess enrolee & market \\
-$\bar\varphi$ & 6.5 & regulated fee & scheme \\
-$\rho$ & 1.0 & annual rent per declared seat & scheme \\
+$\rho$ & 0.75 & annual rent per capacity seat, filled or not & both \\
+$c$ & 24 & cost per enrolee beyond capacity & market \\
+--- & 25 & fee cap (equals the budget truncation point) & market \\
+$\bar\varphi$ & 5.5 & regulated fee & scheme \\
 $r$ & 0.05 & interest on unspent funds & both \\
-$\delta$ & 0.85 & quality retention & both \\
+$\delta$ & 0.87 & quality retention & both \\
 $\gamma$ & 1.5 & investment productivity, $\gamma\sqrt{I}$ & both \\
 $\kappa$ & 0.14 & intake effect on teaching & both \\
 $s$ & $N(60,13^2)$ on $[20,100]$ & school score & both \\
-$b$ & $10 + 0.12(s{-}60) + N(0,2.6^2)$ on $[3,22]$ & budget & market \\
+$b$ & $10 + 0.12(s{-}60) + N(0,3.8^2)$ on $[3,25]$ & budget & market \\
 $\theta$ & $U[0,1.2]$ & research taste & both \\
 $p_t$ & drift $0.02\tanh(\cdot/10)$ on $[0.3,0.7]$ & STEM share & both \\
 --- & $\tfrac13$; weighted table & event probability; event law & both \\
@@ -165,23 +172,23 @@ $p_t$ & drift $0.02\tanh(\cdot/10)$ on $[0.3,0.7]$ & STEM share & both \\
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{lcccccc}
+\begin{tabular}{lccccccc}
 \toprule
-university & $E$ & $R_S$ & $T_S$ & $R_H$ & $T_H$ & sum \\
+university & $E$ (market) & $E$ (scheme) & $R_S$ & $T_S$ & $R_H$ & $T_H$ & sum \\
 \midrule
-Harkness University    & 120 & 31 & 30 & 28 & 29 & 118 \\
-Wexford Institute      & 100 & 36 & 20 & 28 & 17 & 101 \\
-Millbrook Metropolitan & 95  & 18 & 24 & 16 & 25 & 83  \\
-Greyfriars College     & 85  & 13 & 16 & 11 & 15 & 55  \\
+Harkness University    & 120 & 120 & 31 & 30 & 28 & 29 & 118 \\
+Wexford Institute      & 100 & 100 & 36 & 20 & 28 & 17 & 101 \\
+Millbrook Metropolitan & 130 & 95  & 18 & 24 & 16 & 25 & 83  \\
+Greyfriars College     & 145 & 105 & 13 & 16 & 11 & 15 & 55  \\
 \bottomrule
 \end{tabular}
-\caption{Starting states. The player is intended to take Greyfriars; the scoring quietly punishes a softer choice, since score is capped by starting rank minus one.}
+\caption{Starting states. Endowments are private and world-specific (Section~\ref{sec:env}); the published table---the qualities---is identical across worlds. The player is intended to take Greyfriars; the scoring quietly punishes a softer choice, since score is capped by starting rank minus one.}
 \label{tab:start}
 \end{table}
 
 \section{The opponents}\label{app:ai}
 
-The three rivals run fixed personalities under exactly the player's rules and information. \emph{Harkness}, the balanced incumbent, steers each quality toward a fixed target slightly above its starting level and otherwise hoards; in the scheme it defends the summit, raising its target by fifteen per cent whenever the published gap to the college below falls under ten points. \emph{Wexford}, the prestige chaser, prices high (or, in the scheme, declares few seats at a high bar), overweights research roughly two to one, and rescues its teaching only when collapse is visible; in the scheme it opens its war chest when displaced in the table. \emph{Millbrook}, the cash cow, prices low and fills every seat it can, invests a capped upkeep budget, and banks the rest; in the scheme it counter-invests from the hoard when overtaken or when a challenger closes to within four points. The scheme-only reaction functions exist because price competition does not: without them, any adaptive challenger strolled to the top, and with them the scheme acquired the challenge-deterrent character reported in Section~\ref{sec:calib}. All heuristics condition only on public information and their own books.
+The three rivals run fixed personalities under exactly the player's rules and information. \emph{Harkness}, the balanced incumbent, steers each quality toward a fixed target slightly above its starting level and otherwise hoards; in the scheme it defends the summit with a reaction function in quality: when the published gap to the college below narrows, its target tracks the challenger's total plus a margin---but the plan, defensive or not, is capped at 46 a year, so a challenger who can outspend the cap can outrun the defence. \emph{Wexford}, the prestige chaser, prices high (or, in the scheme, reports a small quota at a high bar), overweights research roughly two to one, and rescues its teaching only when collapse is visible; in the scheme it opens its war chest when displaced in the table. \emph{Millbrook}, the cash cow, prices low and fills every seat it can, invests a capped upkeep budget, and banks the rest; in the scheme it counter-invests from the hoard when overtaken or when a challenger closes to within four points. The scheme-only reaction functions exist because price competition does not: without them, any adaptive challenger strolled to the top; with them, and with the cap, the scheme blocks the middle of the skill distribution while remaining beatable from its top---and, as Section~\ref{sec:calib} records, from its lucky tail. All heuristics condition only on public information and their own books.
 
 \section*{References}
 

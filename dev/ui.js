@@ -277,7 +277,7 @@
         </button>
         <button class="edition ${chosenWorld === 'scheme' ? 'on' : ''}" data-w="scheme">
           <b>The National Admissions Scheme</b>
-          <span>Fees fixed by the Regulator at ${money(P.schemeFee)} a head. A central match assigns students; you declare seats and standards. Every declared seat costs ${money(P.seatCost)} a year, filled or not.</span>
+          <span>Fees fixed by the Regulator at ${money(P.schemeFee)} a head. A central match assigns students; you declare a quota and a standard. Same seats, same rent &mdash; but the match never sends you a student too many.</span>
         </button>
       </div>
       <div class="prospect">${rows}</div>
@@ -285,11 +285,11 @@
         <summary>How the game is played &mdash; the standing rules</summary>
         <div class="card-body">
           <ul>
-            <li><b>Two editions.</b> In <b>the Open Market</b> the rules below apply as written. In <b>the National Admissions Scheme</b>, fees are fixed by the Regulator at ${money(P.schemeFee)} for everyone and means do not matter; instead of making offers you declare <b>seats</b> (0&ndash;${P.capacity} per department) and a threshold, a central algorithm (deferred acceptance) assigns each student to the best-ranked place that will hold them, quotas are never exceeded &mdash; and every declared seat costs <b>${money(P.seatCost)}</b> a year, filled or not. The Market kills by crowd; the Scheme kills by emptiness.</li>
+            <li><b>Two editions, one cost of seats.</b> In both worlds each department keeps ${P.capacity} seats, and every seat costs <b>${money(P.seatRent)}</b> a year, filled or not. In <b>the Open Market</b> you set fees and thresholds, applicants go where they can afford, and every acceptance must be honoured &mdash; each student beyond the ${P.capacity} seats costs <b>${money(P.cOver)}</b>, and you cannot refuse them. In <b>the National Admissions Scheme</b>, fees are fixed by the Regulator at ${money(P.schemeFee)} for everyone, means do not matter, and a central algorithm (deferred acceptance) assigns each student to the best-ranked department that will hold them: you report a quota (0&ndash;${P.capacity}) and a threshold, and the match never exceeds the quota. Same cost of seats everywhere; the Market can overflow them, the Scheme can only leave them empty.</li>
             <li><b>Each year, two decisions.</b> First the <b>Admissions Desk</b>: for each field (STEM and HSS) you set an entry <b>threshold</b> (every applicant at or above it receives an offer) and a <b>fee</b>. Then the <b>Bursar&rsquo;s Office</b>: you invest in research and teaching quality, per field.</li>
             <li><b>Applicants.</b> Forty fresh school-leavers apply each year. Each has a school score, a preferred field, a taste for research prestige, and a private budget. They apply everywhere they can afford, and enrol wherever their offers look best (teaching quality plus their personal weight on research). They stay one year, pay one fee, and leave.</li>
             <li><b>Capacity.</b> Each department teaches up to <b>8</b> students at no extra cost. You must take everyone who accepts your offer; each student beyond 8 costs <b>${money(P.cOver)}</b> in emergency provision. Over-offering is the classic way to die.</li>
-            <li><b>Money.</b> Fees are paid up front &mdash; the year&rsquo;s income sits in the endowment before the Bursar spends a penny, and whatever he does not spend earns ${Math.round(P.interest * 100)}% interest, fees included. If your endowment cannot cover the year's overage bill, the College is bankrupt and the game ends.</li>
+            <li><b>Money.</b> Fees are paid up front &mdash; the year&rsquo;s income sits in the endowment before the Bursar spends a penny, and whatever he does not spend earns ${Math.round(P.interest * 100)}% interest, fees included. If your endowment cannot cover the year&rsquo;s seats bill, the College is bankrupt and the game ends.</li>
             <li><b>Quality.</b> Investment raises quality with diminishing returns, and takes effect the following year. All quality decays ${Math.round((1 - P.delta) * 100)}% a year if unattended. Teaching quality also drifts with the calibre of the students you actually admit, relative to the national average of ${P.sMean}.</li>
             <li><b>Fashion.</b> Field preferences drift slowly toward whichever field boasts higher research quality across the sector.</li>
             <li><b>Information.</b> The League table is public. Rivals&rsquo; fees, thresholds, enrolments and endowments are not. The Ledger publishes no figures on family means &mdash; though a shrewd reader may suspect that money and marks travel together, and your own books reveal, year by year, who could afford you.</li>
@@ -421,7 +421,7 @@
       const last = u.lastReport ? u.lastReport[f] : null;
       const secondCtl = scheme
         ? `<div class="ctl">
-            <span class="lbl">Seats declared (${money(P.seatCost)} each, filled or not)</span>
+            <span class="lbl">Quota reported to the Scheme (0&ndash;${P.capacity})</span>
             <div class="stepper" data-kind="q" data-f="${f}">
               <button data-d="-8">&#171;</button><button data-d="-1">&minus;</button>
               <span class="val num" id="q${f}">${dec['q' + f]}</span>
@@ -475,8 +475,8 @@
             <div class="card-body">
               <div class="fields">${fieldBox('S')}${fieldBox('H')}</div>
               <div class="notice warn">${scheme
-                ? `The Scheme&rsquo;s algorithm assigns each student to the best-ranked department that will hold them; your quota is never exceeded. But the Regulator&rsquo;s rent applies to every declared seat &mdash; ${money(P.seatCost)} a year, filled or not. Empty seats are pure loss.`
-                : `Capacity is ${P.capacity} per department. Every offer that is accepted must be honoured; each enrolee beyond ${P.capacity} costs ${money(P.cOver)}. Applicants who can afford you and clear your threshold get an offer &mdash; all of them.`}</div>
+                ? `The Scheme&rsquo;s algorithm assigns each student to the best-ranked department that will hold them; your quota is never exceeded. The rent &mdash; ${money(P.seatRent)} on each of your ${P.capacity * 2} seats &mdash; falls due regardless: seats the match does not fill are pure loss, and the quota costs nothing to report.`
+                : `Capacity is ${P.capacity} per department, and each seat costs ${money(P.seatRent)} a year, filled or not. Every offer that is accepted must be honoured; each enrolee beyond ${P.capacity} costs ${money(P.cOver)}. Applicants who can afford you and clear your threshold get an offer &mdash; all of them.`}</div>
               <button class="btn oxblood" id="post">${scheme ? 'File the return with the Scheme' : 'Post the prospectus &amp; make offers'}</button>
             </div>
           </section>
@@ -495,7 +495,7 @@
         dec['q' + f] = Math.max(0, Math.min(P.capacity, Math.round(dec['q' + f] + d)));
         el('#q' + f).textContent = dec['q' + f];
       } else {
-        dec['fee' + f] = Math.max(0, Math.min(20, Math.round((dec['fee' + f] + d) * 2) / 2));
+        dec['fee' + f] = Math.max(0, Math.min(P.feeCap, Math.round((dec['fee' + f] + d) * 2) / 2));
         el('#fee' + f).textContent = money(dec['fee' + f]);
       }
     }));
@@ -542,10 +542,10 @@
             <div class="card-head"><span>The year&rsquo;s admissions</span><span class="kicker">confidential</span></div>
             <div class="card-body">
               <div class="scrollx"><table class="report">
-                <thead><tr><th>Field</th><th>${inScheme() ? 'Proposals' : 'Applied'}</th><th>${inScheme() ? 'Seats' : 'Offers'}</th><th>${inScheme() ? 'Placed' : 'Enrolled'}</th><th>Avg</th><th>Fees</th><th>${inScheme() ? 'Seats bill' : 'Overage'}</th></tr></thead>
+                <thead><tr><th>Field</th><th>${inScheme() ? 'Proposals' : 'Applied'}</th><th>${inScheme() ? 'Seats' : 'Offers'}</th><th>${inScheme() ? 'Placed' : 'Enrolled'}</th><th>Avg</th><th>Fees</th><th>Seats bill</th></tr></thead>
                 <tbody>
                   ${reportRow('S')}${reportRow('H')}
-                  <tr class="sumrow"><td>Net of ${inScheme() ? 'the seats bill' : 'overage'}</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
+                  <tr class="sumrow"><td>Net of the seats bill</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
                 </tbody>
               </table></div>
               <div class="notice">${intakeRemark()}</div>
@@ -556,7 +556,7 @@
           <section class="card bursar">
             <div class="card-head"><span>Step II &mdash; The Bursar&rsquo;s Office</span><span class="kicker">investment</span></div>
             <div class="card-body">
-              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C > 0 ? ` &minus; ${inScheme() ? 'seats bill' : 'overage'} ${money(rep.C)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
+              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C > 0 ? ` &minus; seats bill ${money(rep.C)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
               <div class="budgetline" style="border-top:1px dotted var(--rule)"><span>Uncommitted (earns ${Math.round(P.interest * 100)}%, fees included)</span><b class="num" id="remain">${money(budget)}</b></div>
               ${invRow('IRS', 'Research', 'STEM')}
               ${invRow('ITS', 'Teaching', 'STEM', true)}
@@ -672,7 +672,7 @@
     // any of the morning's money news). opening + F - C - I + interest = E.
     const opening = rep.net - rep.F + rep.C;
     const hadMoneyNews = (pre.events || []).some(e => e.index === game.playerIndex && e.deltaE !== undefined);
-    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C > 0 ? `, ${inScheme() ? 'the seats bill took' : 'overage took'} ${money(rep.C)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
+    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C > 0 ? `, the seats bill took ${money(rep.C)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
 
     // Rank prose, with variants; name rivals passed or passing.
     const newRankOf = i => newTable.find(r => r.index === i).rank;
@@ -757,7 +757,7 @@
         const names = empty.map(f => FIELD_SHORT[f]).join(' and ');
         bits.push(pick([
           `Over half of ${names}&rsquo;s declared seats stood empty &mdash; the algorithm consulted the applicants, and the applicants had other ideas`,
-          `${names} declared seats the match did not fill; the Regulator&rsquo;s rent, the Ledger notes, applies to ambition as well as to students`,
+          `${names} reported seats the match did not fill; the rent, the Ledger notes, is indifferent to the distinction`,
         ]));
       }
       return bits.length ? bits.join('; ') + '.' : 'A quiet year for the registry: intake near the national average.';
@@ -828,7 +828,7 @@
     if (o.bankrupt) {
       verdict = 'The Ledger regrets to report';
       headline = `${esc(u.name)} is bankrupt`;
-      body = `The overage bill could not be met, the doors are chained, and the porters have kept the good chairs. Year ${game.round} of ${P.rounds}.`;
+      body = `The seats bill could not be met, the doors are chained, and the porters have kept the good chairs. Year ${game.round} of ${P.rounds}.`;
     } else if (o.resigned) {
       verdict = 'From the appointments column';
       headline = 'A resignation at ' + esc(u.name);
