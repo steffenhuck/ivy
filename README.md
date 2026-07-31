@@ -18,16 +18,20 @@ Score = starting rank − final rank.
 The game ships in **two editions**, chosen on the title screen (or via
 `?world=scheme`):
 
-- **The Open Market** — you set fees and thresholds per field; applicants
-  apply where they can afford and take their best offer; every acceptance
-  must be honoured, and intake beyond capacity pays a punitive overage.
+Both worlds share **one cost of seats**: each of a department's eight seats
+costs £0.75k a year, filled or not, and every student beyond the eighth
+costs £24k — a term only the market can reach.
+
+- **The Open Market** — you set fees (up to £25k; only demand polices the
+  top end) and thresholds per field; applicants apply where they can afford
+  and take their best offer; every acceptance must be honoured.
 - **The National Admissions Scheme** — fees are fixed by the Regulator,
   means don't matter, and a student-proposing deferred-acceptance match
-  (Gale–Shapley) assigns students to declared per-department quotas. Quotas
-  are never exceeded, but every declared seat costs rent whether it fills or
-  not: the market kills by crowd, the Scheme kills by emptiness. The sharp
-  play here is real matching theory — under-reporting capacity to raise
-  intake calibre.
+  (Gale–Shapley) assigns students against reported quotas, never exceeding
+  them. The quota is a pure report, so the sharp play is matching theory
+  undiluted — under-reporting capacity to raise intake calibre (Sönmez
+  1997). The market can overflow your seats; the Scheme can only leave
+  them empty.
 
 ## Development
 
@@ -44,9 +48,12 @@ The game engine was built headless and calibrated before any UI existed
   harness report in its header comment
 
 Calibration over 500 seeds from the worst start, per world (full report
-embedded at the top of `index.html`). Market: Sharp finishes 1st in 58% of
-seeds, Sensible improves in 64% but tops in only 6%, Naive stagnates in 98%;
-Sensible bankruptcy 4.2%. Scheme: Sharp 74%, Sensible tops rarely (8%) and
-improves in 37% — the Scheme's incumbents defend rank with quality investment,
-which deters half-hearted challenges — while static Naive play pays rent on
-empty seats until broke (~95%); Sensible bankruptcy ≤0.2%.
+embedded at the top of `index.html`). Market: Sharp finishes 1st in 36% of
+seeds, Sensible improves in 35% and tops rarely (2.4%), and static Naive is
+foreclosed on by the rent (99.8% bankrupt). Scheme: Sharp 34%, Sensible
+improves in 33% and tops in 4.6%, while static Naive survives a third of
+seeds and tops the table in 18% of them — where there is no price, there is
+no selection. Sensible bankruptcy: 9.8% (market), 6.8% (scheme).
+Starting endowments are world-specific and private — the market's bottom
+college holds a war chest the Scheme's must not have — while the published
+starting table is identical in both editions.
