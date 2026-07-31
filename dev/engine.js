@@ -148,10 +148,10 @@ const DEFAULT_PARAMS = {
   // Starting universities, ordered by index (initial league rank order).
   // Each has a native AI personality used whenever the player doesn't run it.
   unis: [
-    { name: 'Harkness University',    personality: 'balanced', E: 120, RS: 31, TS: 30, RH: 28, TH: 29 },
-    { name: 'Wexford Institute',      personality: 'prestige', E: 100, RS: 36, TS: 20, RH: 28, TH: 17 },
-    { name: 'Millbrook Metropolitan', personality: 'cashcow',  E: 95,  RS: 18, TS: 24, RH: 16, TH: 25 },
-    { name: 'Greyfriars College',     personality: 'cashcow',  E: 105,  RS: 13, TS: 16, RH: 11, TH: 15 },
+    { name: 'Harkness University',    personality: 'balanced', E: 120, ES: 120, RS: 31, TS: 30, RH: 28, TH: 29 },
+    { name: 'Wexford Institute',      personality: 'prestige', E: 100, ES: 100, RS: 36, TS: 20, RH: 28, TH: 17 },
+    { name: 'Millbrook Metropolitan', personality: 'cashcow',  E: 130, ES: 95,  RS: 18, TS: 24, RH: 16, TH: 25 },
+    { name: 'Greyfriars College',     personality: 'cashcow',  E: 145, ES: 105, RS: 13, TS: 16, RH: 11, TH: 15 },
   ],
 };
 
@@ -500,7 +500,8 @@ class Game {
 
     this.unis = P.unis.map((u, i) => ({
       index: i, name: u.name,
-      E: u.E, RS: u.RS, TS: u.TS, RH: u.RH, TH: u.TH,
+      E: (P.world === 'scheme' && u.ES !== undefined) ? u.ES : u.E,
+      RS: u.RS, TS: u.TS, RH: u.RH, TH: u.TH,
       broke: false, lastReport: null, ai: null, controller: null,
     }));
 

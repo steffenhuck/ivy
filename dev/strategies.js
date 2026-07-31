@@ -217,7 +217,8 @@ function sensibleScheme(P) {
     },
     spend(pre, rep, uni) {
       st.last = rep;
-      const avail = Math.max(0, rep.net - 15);
+      // Rent-aware float: the seats bill arrives every year regardless.
+      const avail = Math.max(0, rep.net - 30);
       const want = {
         IRS: maintInvest(uni.RS, P), ITS: maintInvest(uni.TS, P),
         IRH: maintInvest(uni.RH, P), ITH: maintInvest(uni.TH, P),
