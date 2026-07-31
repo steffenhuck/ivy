@@ -79,6 +79,10 @@
   let game = null;          // current Game
   let pre = null;           // startRound() view for the current year
   let rep = null;           // admissions report for the current year
+  // Which edition of the world to play. ?world=scheme preselects.
+  let chosenWorld = new URLSearchParams(location.search).get('world') === 'scheme' ? 'scheme' : 'market';
+  const inScheme = () => game && game.P.world === 'scheme';
+  const WORLD_NAME = { market: 'The Open Market', scheme: 'The National Admissions Scheme' };
   let prevRanks = null;     // last year's ranks by uni index (for arrows)
   let dec = { feeS: 8, thrS: 55, feeH: 8, thrH: 55 };   // sticky controls
   let inv = { IRS: 0, ITS: 0, IRH: 0, ITH: 0 };
@@ -113,7 +117,7 @@
   function dateline() {
     const u = game.unis[game.playerIndex];
     return `<div class="dateline">
-      <span>Year ${game.round} of ${P.rounds} &middot; ${esc(u.name)}</span>
+      <span>Year ${game.round} of ${P.rounds} &middot; ${esc(u.name)} &middot; ${WORLD_NAME[game.P.world]}</span>
       <span>Endowment <b class="num">${money(u.E)}</b>${u.E < 30 ? ` <b class="red">${pick(THIN_ICE)}</b>` : ''}</span>
       <button class="resign" id="resign">resign the post</button>
     </div>`;
@@ -266,11 +270,22 @@
         <p>At the foot of the table stands <b>Greyfriars College</b> — endowment thin, faculties tired, reputation a rumour. Its governing board, out of options and nearly out of money, is hiring anyone willing to serve as Vice-Chancellor. The Ledger doubts anything can be done. Proving the Ledger wrong is the whole game: take the worst chair in academia and carry it to the top of the table.</p>
         <p>Vacancies exist at better houses, for those who prefer a quieter life. The scoring, note, is unsentimental: your score is how many places you climb. Start high and there is nowhere to go.</p>
       </div>
+      <div class="editions">
+        <button class="edition ${chosenWorld === 'market' ? 'on' : ''}" data-w="market">
+          <b>The Open Market</b>
+          <span>Set your own fees, take everyone who accepts. Applicants go where they can afford; over-offering is the classic way to die.</span>
+        </button>
+        <button class="edition ${chosenWorld === 'scheme' ? 'on' : ''}" data-w="scheme">
+          <b>The National Admissions Scheme</b>
+          <span>Fees fixed by the Regulator at ${money(P.schemeFee)} a head. A central match assigns students; you declare seats and standards. Every declared seat costs ${money(P.seatCost)} a year, filled or not.</span>
+        </button>
+      </div>
       <div class="prospect">${rows}</div>
       <details class="rules">
         <summary>How the game is played &mdash; the standing rules</summary>
         <div class="card-body">
           <ul>
+            <li><b>Two editions.</b> In <b>the Open Market</b> the rules below apply as written. In <b>the National Admissions Scheme</b>, fees are fixed by the Regulator at ${money(P.schemeFee)} for everyone and means do not matter; instead of making offers you declare <b>seats</b> (0&ndash;${P.capacity} per department) and a threshold, a central algorithm (deferred acceptance) assigns each student to the best-ranked place that will hold them, quotas are never exceeded &mdash; and every declared seat costs <b>${money(P.seatCost)}</b> a year, filled or not. The Market kills by crowd; the Scheme kills by emptiness.</li>
             <li><b>Each year, two decisions.</b> First the <b>Admissions Desk</b>: for each field (STEM and HSS) you set an entry <b>threshold</b> (every applicant at or above it receives an offer) and a <b>fee</b>. Then the <b>Bursar&rsquo;s Office</b>: you invest in research and teaching quality, per field.</li>
             <li><b>Applicants.</b> Forty fresh school-leavers apply each year. Each has a school score, a preferred field, a taste for research prestige, and a private budget. They apply everywhere they can afford, and enrol wherever their offers look best (teaching quality plus their personal weight on research). They stay one year, pay one fee, and leave.</li>
             <li><b>Capacity.</b> Each department teaches up to <b>8</b> students at no extra cost. You must take everyone who accepts your offer; each student beyond 8 costs <b>${money(P.cOver)}</b> in emergency provision. Over-offering is the classic way to die.</li>
@@ -285,6 +300,10 @@
       <div class="footer-note">The Morning Ledger University Guide &middot; entirely fictional &middot; one file</div>
       <div class="footer-note sig"><a href="https://steffenhuck.github.io">steffen huck</a></div>
     `);
+    els('.edition').forEach(b => b.addEventListener('click', () => {
+      chosenWorld = b.dataset.w;
+      els('.edition').forEach(x => x.classList.toggle('on', x === b));
+    }));
     els('.pick-btn').forEach(b => b.addEventListener('click', () => {
       const idx = +b.dataset.idx;
       // Optional ?seed= query parameter makes a season reproducible;
@@ -302,18 +321,28 @@
   // AI opening, so year 1 isn't a guaranteed empty hall. (With the old flat
   // fee 8 / threshold 55, the bottom college enrolled nobody in year 1 in
   // 100% of 200 test seeds: every offer was dominated by Millbrook.)
-  const OPENING = [
-    { fee: 11,  thr: 58 },  // Harkness
-    { fee: 12,  thr: 62 },  // Wexford
-    { fee: 6.5, thr: 45 },  // Millbrook
-    { fee: 5.5, thr: 35 },  // Greyfriars
-  ];
+  const OPENING = {
+    market: [
+      { fee: 11,  thr: 58 },  // Harkness
+      { fee: 12,  thr: 62 },  // Wexford
+      { fee: 6.5, thr: 45 },  // Millbrook
+      { fee: 5.5, thr: 35 },  // Greyfriars
+    ],
+    scheme: [
+      { q: 7, thr: 58 },      // Harkness
+      { q: 5, thr: 66 },      // Wexford
+      { q: 8, thr: 35 },      // Millbrook
+      { q: 6, thr: 35 },      // Greyfriars
+    ],
+  };
 
   function startGame(idx, seed) {
-    game = new Game({ seed, playerIndex: idx });
+    game = new Game({ seed, playerIndex: idx, params: { world: chosenWorld } });
     prevRanks = null;
-    const o = OPENING[idx];
-    dec = { feeS: o.fee, thrS: o.thr, feeH: o.fee, thrH: o.thr };
+    const o = OPENING[chosenWorld][idx];
+    dec = chosenWorld === 'scheme'
+      ? { qS: o.q, thrS: o.thr, qH: o.q, thrH: o.thr }
+      : { feeS: o.fee, thrS: o.thr, feeH: o.fee, thrH: o.thr };
     nextYear();
   }
 
@@ -333,7 +362,7 @@
     const last = u.lastReport;
     const intake = last ? `
       <table class="report" style="margin-top:10px">
-        <thead><tr><th>Last year</th><th>Applied</th><th>Offers</th><th>Enrolled</th><th>Avg score</th></tr></thead>
+        <thead><tr><th>Last year</th><th>${inScheme() ? 'Proposals' : 'Applied'}</th><th>${inScheme() ? 'Seats' : 'Offers'}</th><th>${inScheme() ? 'Placed' : 'Enrolled'}</th><th>Avg score</th></tr></thead>
         <tbody>
           <tr><td>STEM</td><td class="num">${last.S.applied}</td><td class="num">${last.S.offers}</td><td class="num">${last.S.matric}</td><td class="num">${last.S.sbar === null ? '&mdash;' : n1(last.S.sbar)}</td></tr>
           <tr><td>HSS</td><td class="num">${last.H.applied}</td><td class="num">${last.H.offers}</td><td class="num">${last.H.matric}</td><td class="num">${last.H.sbar === null ? '&mdash;' : n1(last.H.sbar)}</td></tr>
@@ -387,8 +416,32 @@
 
   function renderAdmissions() {
     const u = game.unis[game.playerIndex];
+    const scheme = inScheme();
     const fieldBox = f => {
       const last = u.lastReport ? u.lastReport[f] : null;
+      const secondCtl = scheme
+        ? `<div class="ctl">
+            <span class="lbl">Seats declared (${money(P.seatCost)} each, filled or not)</span>
+            <div class="stepper" data-kind="q" data-f="${f}">
+              <button data-d="-8">&#171;</button><button data-d="-1">&minus;</button>
+              <span class="val num" id="q${f}">${dec['q' + f]}</span>
+              <button data-d="1">+</button><button data-d="8">&#187;</button>
+            </div>
+          </div>
+          <div class="feefixed">Fee: set by the Regulator at ${money(P.schemeFee)} a head.</div>`
+        : `<div class="ctl">
+            <span class="lbl">Annual fee</span>
+            <div class="stepper" data-kind="fee" data-f="${f}">
+              <button data-d="-2">&#171;</button><button data-d="-0.5">&minus;</button>
+              <span class="val num" id="fee${f}">${money(dec['fee' + f])}</span>
+              <button data-d="0.5">+</button><button data-d="2">&#187;</button>
+            </div>
+          </div>`;
+      const demand = last
+        ? (scheme
+            ? `Last year: <b class="num">${last.applied}</b> proposed &middot; placed <b class="num">${last.matric}</b> of <b class="num">${last.offers}</b> seats${last.cutoff != null ? ` &middot; cutoff <b class="num">${n1(last.cutoff)}</b>` : ''}${last.matric < last.offers ? ` <b class="red">(${last.offers - last.matric} empty)</b>` : ''}`
+            : `Last year: <b class="num">${last.applied}</b> applied &middot; <b class="num">${last.offers}</b> offers out &middot; <b class="num">${last.matric}</b> enrolled${last.matric > P.capacity ? ` <b class="red">(${last.matric - P.capacity} over capacity)</b>` : ''}`)
+        : 'No demand history yet.';
       return `<div class="fieldbox">
         <h4>${FIELD_NAME[f]}</h4>
         <div class="ctl">
@@ -399,17 +452,8 @@
             <button data-d="1">+</button><button data-d="5">&#187;</button>
           </div>
         </div>
-        <div class="ctl">
-          <span class="lbl">Annual fee</span>
-          <div class="stepper" data-kind="fee" data-f="${f}">
-            <button data-d="-2">&#171;</button><button data-d="-0.5">&minus;</button>
-            <span class="val num" id="fee${f}">${money(dec['fee' + f])}</span>
-            <button data-d="0.5">+</button><button data-d="2">&#187;</button>
-          </div>
-        </div>
-        <div class="demandline">${last
-          ? `Last year: <b class="num">${last.applied}</b> applied &middot; <b class="num">${last.offers}</b> offers out &middot; <b class="num">${last.matric}</b> enrolled${last.matric > P.capacity ? ` <b class="red">(${last.matric - P.capacity} over capacity)</b>` : ''}`
-          : 'No demand history yet.'}</div>
+        ${secondCtl}
+        <div class="demandline">${demand}</div>
       </div>`;
     };
     setView(`
@@ -427,11 +471,13 @@
         </div>
         <div class="stack">
           <section class="card admissions">
-            <div class="card-head"><span>Step I &mdash; The Admissions Desk</span><span class="kicker">offers &amp; fees</span></div>
+            <div class="card-head"><span>Step I &mdash; The Admissions Desk</span><span class="kicker">${scheme ? 'seats &amp; standards' : 'offers &amp; fees'}</span></div>
             <div class="card-body">
               <div class="fields">${fieldBox('S')}${fieldBox('H')}</div>
-              <div class="notice warn">Capacity is ${P.capacity} per department. Every offer that is accepted must be honoured; each enrolee beyond ${P.capacity} costs ${money(P.cOver)}. Applicants who can afford you and clear your threshold get an offer &mdash; all of them.</div>
-              <button class="btn oxblood" id="post">Post the prospectus &amp; make offers</button>
+              <div class="notice warn">${scheme
+                ? `The Scheme&rsquo;s algorithm assigns each student to the best-ranked department that will hold them; your quota is never exceeded. But the Regulator&rsquo;s rent applies to every declared seat &mdash; ${money(P.seatCost)} a year, filled or not. Empty seats are pure loss.`
+                : `Capacity is ${P.capacity} per department. Every offer that is accepted must be honoured; each enrolee beyond ${P.capacity} costs ${money(P.cOver)}. Applicants who can afford you and clear your threshold get an offer &mdash; all of them.`}</div>
+              <button class="btn oxblood" id="post">${scheme ? 'File the return with the Scheme' : 'Post the prospectus &amp; make offers'}</button>
             </div>
           </section>
           ${myCard()}
@@ -445,6 +491,9 @@
       if (box.dataset.kind === 'thr') {
         dec['thr' + f] = Math.max(20, Math.min(100, dec['thr' + f] + d));
         el('#thr' + f).textContent = dec['thr' + f];
+      } else if (box.dataset.kind === 'q') {
+        dec['q' + f] = Math.max(0, Math.min(P.capacity, Math.round(dec['q' + f] + d)));
+        el('#q' + f).textContent = dec['q' + f];
       } else {
         dec['fee' + f] = Math.max(0, Math.min(20, Math.round((dec['fee' + f] + d) * 2) / 2));
         el('#fee' + f).textContent = money(dec['fee' + f]);
@@ -493,10 +542,10 @@
             <div class="card-head"><span>The year&rsquo;s admissions</span><span class="kicker">confidential</span></div>
             <div class="card-body">
               <div class="scrollx"><table class="report">
-                <thead><tr><th>Field</th><th>Applied</th><th>Offers</th><th>Enrolled</th><th>Avg</th><th>Fees</th><th>Overage</th></tr></thead>
+                <thead><tr><th>Field</th><th>${inScheme() ? 'Proposals' : 'Applied'}</th><th>${inScheme() ? 'Seats' : 'Offers'}</th><th>${inScheme() ? 'Placed' : 'Enrolled'}</th><th>Avg</th><th>Fees</th><th>${inScheme() ? 'Seats bill' : 'Overage'}</th></tr></thead>
                 <tbody>
                   ${reportRow('S')}${reportRow('H')}
-                  <tr class="sumrow"><td>Net of overage</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
+                  <tr class="sumrow"><td>Net of ${inScheme() ? 'the seats bill' : 'overage'}</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
                 </tbody>
               </table></div>
               <div class="notice">${intakeRemark()}</div>
@@ -507,7 +556,7 @@
           <section class="card bursar">
             <div class="card-head"><span>Step II &mdash; The Bursar&rsquo;s Office</span><span class="kicker">investment</span></div>
             <div class="card-body">
-              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C > 0 ? ` &minus; overage ${money(rep.C)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
+              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C > 0 ? ` &minus; ${inScheme() ? 'seats bill' : 'overage'} ${money(rep.C)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
               <div class="budgetline" style="border-top:1px dotted var(--rule)"><span>Uncommitted (earns ${Math.round(P.interest * 100)}%, fees included)</span><b class="num" id="remain">${money(budget)}</b></div>
               ${invRow('IRS', 'Research', 'STEM')}
               ${invRow('ITS', 'Teaching', 'STEM', true)}
@@ -623,7 +672,7 @@
     // any of the morning's money news). opening + F - C - I + interest = E.
     const opening = rep.net - rep.F + rep.C;
     const hadMoneyNews = (pre.events || []).some(e => e.index === game.playerIndex && e.deltaE !== undefined);
-    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C > 0 ? `, overage took ${money(rep.C)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
+    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C > 0 ? `, ${inScheme() ? 'the seats bill took' : 'overage took'} ${money(rep.C)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
 
     // Rank prose, with variants; name rivals passed or passing.
     const newRankOf = i => newTable.find(r => r.index === i).rank;
@@ -699,6 +748,19 @@
       if (d.matric === 0) bits.push(`${FIELD_SHORT[f]} admitted nobody &mdash; no fees, and no effect on teaching either way`);
       else if (d.sbar >= P.sMean + 5) bits.push(`${FIELD_SHORT[f]}&rsquo;s intake (avg ${n1(d.sbar)}) flatters its teaching`);
       else if (d.sbar <= P.sMean - 5) bits.push(`${FIELD_SHORT[f]}&rsquo;s intake (avg ${n1(d.sbar)}) drags teaching by ${n1(P.kappa * (P.sMean - d.sbar))} a year at current calibre`);
+    }
+    // Scheme: empty declared seats are the ailment (the match never
+    // declines an offer — it simply seats students elsewhere).
+    if (inScheme()) {
+      const empty = ['S', 'H'].filter(f => rep[f].offers >= 4 && rep[f].matric < rep[f].offers / 2);
+      if (empty.length) {
+        const names = empty.map(f => FIELD_SHORT[f]).join(' and ');
+        bits.push(pick([
+          `Over half of ${names}&rsquo;s declared seats stood empty &mdash; the algorithm consulted the applicants, and the applicants had other ideas`,
+          `${names} declared seats the match did not fill; the Regulator&rsquo;s rent, the Ledger notes, applies to ambition as well as to students`,
+        ]));
+      }
+      return bits.length ? bits.join('; ') + '.' : 'A quiet year for the registry: intake near the national average.';
     }
     // Declined-offers feedback. Uses only the player's own report and the
     // public league table: if some rival's teaching AND research in the

@@ -8,9 +8,11 @@
 const { Game, DEFAULT_PARAMS } = require('./engine.js');
 const strategies = require('./strategies.js');
 
-function runOne(stratName, seed, paramsOverride) {
-  const g = new Game({ seed, playerIndex: 3, params: paramsOverride });
-  const strat = strategies[stratName](g.P);
+function runOne(stratName, seed, paramsOverride, world) {
+  const params = Object.assign({}, paramsOverride || {}, world ? { world } : {});
+  const g = new Game({ seed, playerIndex: 3, params });
+  const key = g.P.world === 'scheme' ? stratName + 'Scheme' : stratName;
+  const strat = strategies[key](g.P);
   for (;;) {
     const pre = g.startRound();
     const dec = strat.admissions(pre);
@@ -61,21 +63,24 @@ function main() {
     else nSeeds = parseInt(args[i], 10) || nSeeds;
   }
   const names = ['naive', 'sensible', 'sharp'];
-  const rows = [];
-  for (const name of names) {
-    const results = [];
-    for (let seed = 1; seed <= nSeeds; seed++) results.push(runOne(name, seed, paramsOverride));
-    rows.push(summarize(name, results));
-  }
   const P = Object.assign({}, DEFAULT_PARAMS, paramsOverride || {});
-  console.log(`seeds=${nSeeds}  rounds=${P.rounds}  delta=${P.delta} gamma=${P.gamma} kappa=${P.kappa} cOver=${P.cOver} r=${P.interest}`);
-  console.log('strategy  | meanScore | rank1  rank2  rank3  rank4 | score=3 | score>=1 | score<=0 | bankrupt | meanQ  meanE');
-  for (const r of rows) {
-    console.log(
-      r.name.padEnd(9) + ' | ' + String(r.meanScore).padStart(9) + ' | ' +
-      r.rankPct.join(' ') + ' | ' + r.score3.padStart(7) + ' | ' + r.scoreGe1.padStart(8) +
-      ' | ' + r.scoreLe0.padStart(8) + ' | ' + r.bankrupt.padStart(8) +
-      ' | ' + String(r.meanTotal).padStart(5) + ' ' + String(r.meanE).padStart(6));
+  console.log(`seeds=${nSeeds}  rounds=${P.rounds}  delta=${P.delta} gamma=${P.gamma} kappa=${P.kappa} cOver=${P.cOver} r=${P.interest} schemeFee=${P.schemeFee} seatCost=${P.seatCost}`);
+  for (const world of ['market', 'scheme']) {
+    const rows = [];
+    for (const name of names) {
+      const results = [];
+      for (let seed = 1; seed <= nSeeds; seed++) results.push(runOne(name, seed, paramsOverride, world));
+      rows.push(summarize(name, results));
+    }
+    console.log(`-- world: ${world} --`);
+    console.log('strategy  | meanScore | rank1  rank2  rank3  rank4 | score=3 | score>=1 | score<=0 | bankrupt | meanQ  meanE');
+    for (const r of rows) {
+      console.log(
+        r.name.padEnd(9) + ' | ' + String(r.meanScore).padStart(9) + ' | ' +
+        r.rankPct.join(' ') + ' | ' + r.score3.padStart(7) + ' | ' + r.scoreGe1.padStart(8) +
+        ' | ' + r.scoreLe0.padStart(8) + ' | ' + r.bankrupt.padStart(8) +
+        ' | ' + String(r.meanTotal).padStart(5) + ' ' + String(r.meanE).padStart(6));
+    }
   }
 }
 

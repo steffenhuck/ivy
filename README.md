@@ -10,10 +10,24 @@ footer either way.
 
 You take over one of four universities — by design, the bottom-ranked
 Greyfriars College — and have twenty academic years to climb The Morning
-Ledger's league table. Each year you make two moves: set admission thresholds
-and fees per field (STEM / HSS), then invest the proceeds in research and
-teaching quality. Rivals are run by three adaptive AI personalities playing
-under exactly the same rules. Score = starting rank − final rank.
+Ledger's league table. Each year you make two moves: run admissions, then
+invest the proceeds in research and teaching quality. Rivals are run by three
+adaptive AI personalities playing under exactly the same rules.
+Score = starting rank − final rank.
+
+The game ships in **two editions**, chosen on the title screen (or via
+`?world=scheme`):
+
+- **The Open Market** — you set fees and thresholds per field; applicants
+  apply where they can afford and take their best offer; every acceptance
+  must be honoured, and intake beyond capacity pays a punitive overage.
+- **The National Admissions Scheme** — fees are fixed by the Regulator,
+  means don't matter, and a student-proposing deferred-acceptance match
+  (Gale–Shapley) assigns students to declared per-department quotas. Quotas
+  are never exceeded, but every declared seat costs rent whether it fills or
+  not: the market kills by crowd, the Scheme kills by emptiness. The sharp
+  play here is real matching theory — under-reporting capacity to raise
+  intake calibre.
 
 ## Development
 
@@ -29,8 +43,10 @@ The game engine was built headless and calibrated before any UI existed
 - `dev/build.js` — assembles `index.html` and embeds a fresh 500-seed
   harness report in its header comment
 
-Calibration result over 500 seeds from the worst start (also embedded at the
-top of `index.html`, regenerated after the stratified-cohort and random-event
-engine changes): Sharp finishes 1st in 58% of seeds, Sensible improves rank
-in 64% but reaches the top in only 6%, Naive stagnates or declines in 98%;
-bankruptcy under Sensible play is rare (4.2%).
+Calibration over 500 seeds from the worst start, per world (full report
+embedded at the top of `index.html`). Market: Sharp finishes 1st in 58% of
+seeds, Sensible improves in 64% but tops in only 6%, Naive stagnates in 98%;
+Sensible bankruptcy 4.2%. Scheme: Sharp 74%, Sensible tops rarely (8%) and
+improves in 37% — the Scheme's incumbents defend rank with quality investment,
+which deters half-hearted challenges — while static Naive play pays rent on
+empty seats until broke (~95%); Sensible bankruptcy ≤0.2%.

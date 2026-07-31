@@ -45,6 +45,28 @@
  * Quality effects are floored at 0. Broke universities draw and discard
  * both numbers (stream stability), and receive no events.
  *
+ * TWO WORLDS (params.world):
+ *   'market' (default) — the original economy: per-field fees and
+ *     thresholds, applicants apply where affordable, every acceptance must
+ *     be honoured, intake above capacity pays the overage penalty.
+ *   'scheme' — the National Admissions Scheme: fees are fixed by the
+ *     regulator (schemeFee, one flat rate for everything), budgets are
+ *     irrelevant (the Scheme is means-blind), and matriculation is decided
+ *     by student-proposing deferred acceptance (Gale-Shapley), run
+ *     independently per field. Each university declares a quota per
+ *     department (0..capacity seats) and a threshold below which
+ *     applicants are unacceptable; department preferences are by school
+ *     score. DA never over-fills a quota, so there is no overage — the
+ *     risk is inverted: every DECLARED seat costs seatCost per year,
+ *     filled or not (C_t = seatCost * total declared seats). Ledger and
+ *     bankruptcy rules are unchanged. In scheme reports, 'applied' counts
+ *     distinct students who proposed to the department at any point of the
+ *     match, 'offers' echoes the declared quota, and 'cutoff' is the
+ *     lowest admitted score (null if none). Student preference ties are
+ *     broken by tiny rng perturbations; the scheme consumes the main rng
+ *     differently from the market, so the two worlds are separate
+ *     reproducibility universes (same seed + same world => same game).
+ *
  * Ledger (canonical): E_{t+1} = (E_t + F_t - C_t - I_t) * (1 + r).
  * Bankruptcy: if E_t + F_t - C_t < 0 after market clearing, the university is
  * broke. Player broke => game over immediately. Broke AI (documented choice:
@@ -86,10 +108,13 @@ const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
 /* ----------------------------- Parameters ------------------------------- */
 const DEFAULT_PARAMS = {
+  world: 'market',      // 'market' | 'scheme' (see header comment)
   rounds: 20,
   nApplicants: 40,
   capacity: 8,          // per department per round, zero marginal cost
-  cOver: 24,            // per-head overage penalty above capacity
+  cOver: 24,            // per-head overage penalty above capacity (market)
+  schemeFee: 6.5,       // regulated flat fee, all fields (scheme)
+  seatCost: 1.0,        // annual cost per DECLARED seat, filled or not (scheme)
   interest: 0.05,       // r: interest on funds unspent after investment
   delta: 0.85,          // quality decay factor
   gamma: 1.5,           // g(I) = gamma * sqrt(I)
@@ -166,6 +191,42 @@ function pickEvent(r) {
   return EVENTS[EVENTS.length - 1];
 }
 
+/* -------------------- Scheme world: deferred acceptance -------------------
+ * Student-proposing DA for one field. Students rank the four departments by
+ * T_f + theta * R_f (ties broken by tiny rng perturbation); departments
+ * rank acceptable students (s >= threshold) by school score and hold at
+ * most their declared quota. Terminates in <= 4 proposals per student and
+ * yields the student-optimal stable matching. */
+function runDA(field, students, decisions, unis, rng) {
+  const n = unis.length;
+  const proposers = students.map(a => {
+    const order = unis
+      .map(u => ({ i: u.index, v: (field === 'S' ? u.TS + a.theta * u.RS : u.TH + a.theta * u.RH) + rng() * 1e-9 }))
+      .sort((x, y) => y.v - x.v)
+      .map(x => x.i);
+    return { a, order, next: 0 };
+  });
+  const held = Array.from({ length: n }, () => []);
+  const proposedTo = Array.from({ length: n }, () => new Set());
+  const queue = proposers.slice();
+  while (queue.length) {
+    const p = queue.shift();
+    if (p.next >= p.order.length) continue; // exhausted: unmatched, exits
+    const idx = p.order[p.next++];
+    proposedTo[idx].add(p);
+    const d = decisions[idx];
+    const q = d ? (field === 'S' ? d.qS : d.qH) : 0;
+    const thr = d ? (field === 'S' ? d.thrS : d.thrH) : Infinity;
+    if (!d || q <= 0 || p.a.s < thr) { queue.push(p); continue; } // rejected outright
+    held[idx].push(p);
+    if (held[idx].length > q) {
+      held[idx].sort((x, y) => y.a.s - x.a.s);
+      queue.push(held[idx].pop()); // displace the weakest held student
+    }
+  }
+  return { held, proposedTo };
+}
+
 /* ------------------------- AI opponent heuristics ------------------------
  * All AIs obey the same rules as the player: same capacity, overage cost,
  * decay, investment technology; they see only the public league table, the
@@ -191,9 +252,27 @@ function maintInvest(Q, P) {
 function aiPrestige(P) {
   return {
     init(uni) {
-      uni.ai = { fee: { S: 12, H: 12 }, thr: { S: 64, H: 64 } };
+      uni.ai = P.world === 'scheme'
+        ? { q: { S: 5, H: 5 }, thr: { S: 66, H: 66 } }
+        : { fee: { S: 12, H: 12 }, thr: { S: 64, H: 64 } };
+    },
+    // Scheme persona: small, selective, slow to unbend. Trims its standards
+    // only when the hall is nearly empty; never grows beyond 6 seats.
+    schemeAdmissions(uni) {
+      const a = uni.ai, last = uni.lastReport;
+      for (const f of ['S', 'H']) {
+        if (last) {
+          const d = last[f];
+          if (d.matric <= 1) { a.thr[f] -= 2; if (d.matric === 0) a.q[f] -= 1; }
+          else if (d.matric === a.q[f]) { a.thr[f] += 1; if (d.applied > 2 * a.q[f]) a.q[f] += 1; }
+          a.q[f] = clamp(a.q[f], 3, 6);
+          a.thr[f] = clamp(a.thr[f], 56, 78);
+        }
+      }
+      return { qS: a.q.S, thrS: a.thr.S, qH: a.q.H, thrH: a.thr.H };
     },
     admissions(uni) {
+      if (P.world === 'scheme') return this.schemeAdmissions(uni);
       const a = uni.ai, last = uni.lastReport;
       for (const f of ['S', 'H']) {
         if (last) {
@@ -212,11 +291,16 @@ function aiPrestige(P) {
     // Spends aggressively, tying investment to income flow plus a draw on
     // savings; overweights research, but rescues teaching when its student
     // appeal is visibly collapsing (else it death-spirals).
+    // Scheme only: prestige wounded in the published table opens the
+    // war chest — quality is the only competition the Scheme permits.
     spend(uni, net, P2, rep) {
       const investable = Math.max(0, net - 15);
+      const wounded = P2.world === 'scheme' && (uni.rank >= 3 || uni.gapBelow < 5);
+      const drawE = wounded ? 0.25 : 0.15;
+      const cap = wounded ? P2.aiPrestigeCap + 12 : P2.aiPrestigeCap;
       // Bounded ambition: even flush with cash it won't spend beyond its
       // institutional plan (~48/round) — the headroom a challenger needs.
-      const budget = Math.min(investable, 1.2 * rep.F + 0.15 * Math.max(0, uni.E), P2.aiPrestigeCap);
+      const budget = Math.min(investable, 1.2 * rep.F + drawE * Math.max(0, uni.E), cap);
       const teachShare = (uni.TS + uni.TH) < 0.75 * (uni.RS + uni.RH) ? 0.55 : 0.35;
       const tea = budget * teachShare, res = budget - tea;
       return { IRS: res / 2, IRH: res / 2, ITS: tea / 2, ITH: tea / 2 };
@@ -232,9 +316,27 @@ function aiPrestige(P) {
 function aiCashCow(P) {
   return {
     init(uni) {
-      uni.ai = { fee: { S: 6.5, H: 6.5 }, thr: { S: 45, H: 45 } };
+      uni.ai = P.world === 'scheme'
+        ? { q: { S: P.capacity, H: P.capacity }, thr: { S: 35, H: 35 } }
+        : { fee: { S: 6.5, H: 6.5 }, thr: { S: 45, H: 45 } };
+    },
+    // Scheme persona: every seat declared, every year, standards nominal.
+    // Volume is the business model; the seats bill is the cost of doing it.
+    schemeAdmissions(uni) {
+      const a = uni.ai, last = uni.lastReport;
+      for (const f of ['S', 'H']) {
+        if (last) {
+          const d = last[f];
+          if (d.matric < 6) a.thr[f] -= 2;
+          else if (d.matric === a.q[f]) a.thr[f] += 1;
+          a.thr[f] = clamp(a.thr[f], 30, 50);
+        }
+        a.q[f] = P.capacity;
+      }
+      return { qS: a.q.S, thrS: a.thr.S, qH: a.q.H, thrH: a.thr.H };
     },
     admissions(uni) {
+      if (P.world === 'scheme') return this.schemeAdmissions(uni);
       const a = uni.ai, last = uni.lastReport;
       for (const f of ['S', 'H']) {
         if (last) {
@@ -253,9 +355,14 @@ function aiCashCow(P) {
     // a small floor drawn from its hoard when income dips and a hard cap of
     // 34 a round — evenly spread; profits are hoarded. Its qualities
     // therefore plateau in the high 80s — the exploitable seam.
+    // Scheme only: with no price lever to defend its volume, a Cash Cow
+    // that has been overtaken in the table fights back from the hoard.
     spend(uni, net, P2, rep) {
       const investable = Math.max(0, net - 15);
-      const budget = Math.min(investable, Math.max(0.35 * rep.F, P2.aiCashLo), P2.aiCashHi);
+      const fight = P2.world === 'scheme' && (uni.rank >= 4 || uni.gapBelow < 4);
+      const lo = fight ? P2.aiCashLo + 14 : P2.aiCashLo;
+      const hi = fight ? P2.aiCashHi + 18 : P2.aiCashHi;
+      const budget = Math.min(investable, Math.max(0.35 * rep.F, lo), hi);
       const each = budget / 4;
       return { IRS: each, ITS: each, IRH: each, ITH: each };
     },
@@ -272,14 +379,37 @@ function aiBalanced(P) {
     init(uni) {
       uni.ai = {
         fee: { S: 11, H: 11 }, thr: { S: 58, H: 58 },
+        q: { S: 7, H: 7 },
         lastRev: { S: null, H: null }, lastDir: { S: 1, H: 1 },
         // "Roughly maintains all four qualities": steers each quality toward
         // a fixed target a shade above its starting level, rather than
-        // compounding its endowment into unbounded growth.
-        target: { RS: uni.RS * 1.02, TS: uni.TS * 1.02, RH: uni.RH * 1.02, TH: uni.TH * 1.02 },
+        // compounding its endowment into unbounded growth. In the scheme,
+        // with no price competition to manage, the incumbent runs a
+        // slightly more ambitious plan.
+        target: (m => ({ RS: uni.RS * m, TS: uni.TS * m, RH: uni.RH * m, TH: uni.TH * m }))(P.world === 'scheme' ? 1.06 : 1.02),
       };
     },
+    // Scheme persona: prudent house-keeping — quotas track realized demand
+    // (empty seats are money), standards drift with fill.
+    schemeAdmissions(uni) {
+      const a = uni.ai, last = uni.lastReport;
+      for (const f of ['S', 'H']) {
+        if (last) {
+          const d = last[f];
+          if (d.matric <= a.q[f] - 3) { a.q[f] -= 1; a.thr[f] -= 1; }
+          else if (d.matric <= a.q[f] - 2) a.thr[f] -= 1;
+          else if (d.matric === a.q[f]) {
+            a.thr[f] += 0.5;
+            if (d.applied > 2 * a.q[f]) a.q[f] += 1;
+          }
+          a.q[f] = clamp(a.q[f], 4, P.capacity);
+          a.thr[f] = clamp(a.thr[f], 50, 70);
+        }
+      }
+      return { qS: a.q.S, thrS: a.thr.S, qH: a.q.H, thrH: a.thr.H };
+    },
     admissions(uni) {
+      if (P.world === 'scheme') return this.schemeAdmissions(uni);
       const a = uni.ai, last = uni.lastReport;
       for (const f of ['S', 'H']) {
         if (last) {
@@ -305,7 +435,13 @@ function aiBalanced(P) {
     // interest — the complacency a sharp challenger can exploit.
     spend(uni, net, P2) {
       const avail = Math.max(0, net - 20);
-      const tgt = uni.ai.target;
+      let tgt = uni.ai.target;
+      // Scheme only: an incumbent knocked off the top of the table defends
+      // it from the hoard — the plan becomes 15% more ambitious until the
+      // natural order is restored.
+      if (P2.world === 'scheme' && (uni.rank >= 2 || uni.gapBelow < 10)) {
+        tgt = { RS: tgt.RS * 1.15, TS: tgt.TS * 1.15, RH: tgt.RH * 1.15, TH: tgt.TH * 1.15 };
+      }
       const toward = (Q, T) => {
         const need = (T - P2.delta * Q) / P2.gamma;
         return need > 0 ? need * need : 0;
@@ -444,6 +580,14 @@ class Game {
     const pctStem = 100 * apps.filter(a => a.f === 'S').length / n;
     this.cohortStats = { median, mean, pctStem };
     const table = this.leagueTable();
+    // Each university knows its own published rank and the gap to the
+    // college directly below it (both public information).
+    for (const row of table) {
+      const u = this.unis[row.index];
+      u.rank = row.rank;
+      const below = table.find(r => r.rank === row.rank + 1);
+      u.gapBelow = below ? row.total - below.total : Infinity;
+    }
     if (this.round > 1) this.rankHistory.push(table.find(r => r.index === this.playerIndex).rank);
     this.phase = 'admissions';
     return { round: this.round, table, cohortStats: this.cohortStats, events };
@@ -454,24 +598,53 @@ class Game {
   submitAdmissions(playerDec) {
     if (this.phase !== 'admissions') throw new Error('bad phase ' + this.phase);
     const P = this.P;
+    const scheme = P.world === 'scheme';
     const decisions = new Array(this.unis.length);
     for (const u of this.unis) {
       if (u.broke) { decisions[u.index] = null; continue; } // broke: stops admitting
       decisions[u.index] = (u.index === this.playerIndex)
-        ? {
-            feeS: Math.max(0, +playerDec.feeS || 0), thrS: +playerDec.thrS || 0,
-            feeH: Math.max(0, +playerDec.feeH || 0), thrH: +playerDec.thrH || 0,
-          }
+        ? (scheme
+            ? {
+                qS: clamp(Math.round(+playerDec.qS || 0), 0, P.capacity), thrS: +playerDec.thrS || 0,
+                qH: clamp(Math.round(+playerDec.qH || 0), 0, P.capacity), thrH: +playerDec.thrH || 0,
+              }
+            : {
+                feeS: Math.max(0, +playerDec.feeS || 0), thrS: +playerDec.thrS || 0,
+                feeH: Math.max(0, +playerDec.feeH || 0), thrH: +playerDec.thrH || 0,
+              })
         : u.controller.admissions(u);
     }
     this._decisions = decisions;
 
-    // Market clearing.
     const reports = this.unis.map(() => ({
       S: { applied: 0, offers: 0, matric: 0, income: 0, overage: 0, sSum: 0, sbar: null },
       H: { applied: 0, offers: 0, matric: 0, income: 0, overage: 0, sSum: 0, sbar: null },
     }));
-    for (const a of this.applicants) {
+
+    if (scheme) {
+      // National Admissions Scheme: per-field deferred acceptance. Fees are
+      // the regulated flat rate; the per-field 'overage' slot carries the
+      // seats bill (seatCost x declared quota, filled or not), so the
+      // ledger and bankruptcy code below are identical across worlds.
+      for (const f of ['S', 'H']) {
+        const students = this.applicants.filter(a => a.f === f);
+        const { held, proposedTo } = runDA(f, students, decisions, this.unis, this.rng);
+        for (const u of this.unis) {
+          const r = reports[u.index][f];
+          const d = decisions[u.index];
+          const q = d ? (f === 'S' ? d.qS : d.qH) : 0;
+          r.applied = proposedTo[u.index].size;
+          r.offers = q; // declared quota
+          r.matric = held[u.index].length;
+          r.income = r.matric * P.schemeFee;
+          r.overage = q * P.seatCost; // the seats bill
+          for (const p of held[u.index]) r.sSum += p.a.s;
+          r.cutoff = r.matric > 0 ? Math.min(...held[u.index].map(p => p.a.s)) : null;
+        }
+      }
+    } else {
+      // Market clearing.
+      for (const a of this.applicants) {
       const f = a.f;
       const offers = [];
       for (const u of this.unis) {
@@ -496,11 +669,12 @@ class Game {
       r.matric++;
       r.sSum += a.s;
       r.income += (f === 'S' ? decisions[chosen.index].feeS : decisions[chosen.index].feeH);
+      }
     }
     for (const u of this.unis) {
       for (const f of ['S', 'H']) {
         const r = reports[u.index][f];
-        r.overage = Math.max(0, r.matric - P.capacity) * P.cOver;
+        if (!scheme) r.overage = Math.max(0, r.matric - P.capacity) * P.cOver;
         r.sbar = r.matric > 0 ? r.sSum / r.matric : null;
         delete r.sSum;
       }

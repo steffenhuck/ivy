@@ -168,4 +168,131 @@ function sharp(P) {
   };
 }
 
-module.exports = { naive, sensible, sharp };
+/* ============================================================================
+ * Scheme-world scripted strategies (fixed regulated fee, deferred
+ * acceptance, declared quotas with per-seat costs).
+ * ========================================================================= */
+
+/* 1. NAIVE (scheme): declares every seat every year at a static mid
+ * threshold, spreads investment evenly. From the bottom, thr 55 rejects the
+ * leftover students DA would send it, so it pays a full seats bill for a
+ * near-empty hall. */
+function naiveScheme() {
+  return {
+    admissions() {
+      return { qS: 8, thrS: 45, qH: 8, thrH: 45 };
+    },
+    // Static bookkeeping: keep a fixed float the size of the seats bill,
+    // spread 60% of the rest evenly. (A reserve is not adaptation.)
+    spend(pre, rep) {
+      const each = Math.max(0, rep.net - 20) * 0.6 / 4;
+      return { IRS: each, ITS: each, IRH: each, ITH: each };
+    },
+  };
+}
+
+/* 2. SENSIBLE (scheme): quotas track realized fill (declared seats cost
+ * money), thresholds unbend when the hall is empty; maintains qualities. */
+function sensibleScheme(P) {
+  const st = { q: { S: 4, H: 4 }, thr: { S: 45, H: 45 }, last: null };
+  return {
+    admissions() {
+      if (st.last) {
+        for (const f of ['S', 'H']) {
+          const d = st.last[f];
+          st.q[f] = d.matric < d.offers - 1
+            ? clamp(d.matric + 1, 2, P.capacity)                       // empty seats: shrink to fill
+            : (d.applied > 2 * d.offers
+                ? clamp(st.q[f] + 1, 2, P.capacity) : st.q[f]);        // expand only under real demand
+          if (d.matric <= 1) st.thr[f] -= 3;
+          else if (d.matric <= st.q[f] - 2) st.thr[f] -= 1;
+          else if (d.matric === d.offers) st.thr[f] += 1;
+          // A sensible house keeps SOME standards; the open-door dive to
+          // the floor of the score distribution is the sharp move, not
+          // the default one.
+          st.thr[f] = clamp(st.thr[f], 36, 70);
+        }
+      }
+      return { qS: st.q.S, thrS: st.thr.S, qH: st.q.H, thrH: st.thr.H };
+    },
+    spend(pre, rep, uni) {
+      st.last = rep;
+      const avail = Math.max(0, rep.net - 15);
+      const want = {
+        IRS: maintInvest(uni.RS, P), ITS: maintInvest(uni.TS, P),
+        IRH: maintInvest(uni.RH, P), ITH: maintInvest(uni.TH, P),
+      };
+      let tot = want.IRS + want.ITS + want.IRH + want.ITH;
+      if (tot > avail && tot > 0) {
+        const k = avail / tot;
+        for (const q in want) want[q] *= k;
+        tot = avail;
+      }
+      const leftover = (avail - tot) * 0.35;
+      for (const q in want) want[q] += leftover / 4;
+      return want;
+    },
+  };
+}
+
+/* 3. SHARP (scheme): exploits the Scheme's structure.
+ *  - Volume phase (while bottom): threshold to the floor — DA's rejection
+ *    cascade delivers everyone the top three turned away; quotas track
+ *    fill + 1 so the seats bill never outruns income.
+ *  - Selectivity phase (once clear of the Cash Cow): the Sonmez move —
+ *    under-report capacity below demand so the department holds only its
+ *    best proposers, raising intake calibre (kappa feeds teaching, teaching
+ *    feeds demand) while saving the seats bill; ratchet the threshold.
+ *  - Expansion phase (late): grow quotas back toward 8 while they fill,
+ *    for income and league points; spend everything by the end. */
+function sharpScheme(P) {
+  const st = { q: { S: 6, H: 6 }, thr: { S: 32, H: 32 }, last: null };
+  return {
+    admissions(pre) {
+      const me = pre.table.find(r => r.index === 3);
+      const beat = pre.table.filter(r => r.index !== 3 && (r.broke || r.total < me.total + 5)).length;
+      const t = pre.round;
+      if (st.last) {
+        for (const f of ['S', 'H']) {
+          const d = st.last[f];
+          if (beat === 0) {
+            // volume phase
+            st.thr[f] = 32;
+            st.q[f] = clamp(d.matric + 1, 2, P.capacity);
+          } else if (t < P.rounds - 6) {
+            // selectivity phase: quota just under demand, standards up
+            const demand = Math.max(d.matric, Math.min(d.applied, P.capacity));
+            st.q[f] = clamp(Math.min(demand - 1, st.q[f]), 3, P.capacity);
+            if (d.matric >= st.q[f]) st.thr[f] += 2;
+            else if (d.matric <= st.q[f] - 2) st.thr[f] -= 2;
+          } else {
+            // expansion phase
+            if (d.matric === d.offers) st.q[f] = clamp(st.q[f] + 1, 3, P.capacity);
+            else if (d.matric <= st.q[f] - 2) { st.q[f] = clamp(st.q[f] - 1, 3, P.capacity); st.thr[f] -= 1; }
+          }
+          st.thr[f] = clamp(st.thr[f], 30, 72);
+        }
+      }
+      return { qS: st.q.S, thrS: st.thr.S, qH: st.q.H, thrH: st.thr.H };
+    },
+    spend(pre, rep, uni) {
+      st.last = rep;
+      const t = pre.round;
+      // No overage tail in the Scheme: the seats bill is self-inflicted and
+      // known in advance, so reserves stay thin.
+      const reserve = t >= P.rounds ? 0 : 10;
+      let budget = Math.max(0, rep.net - reserve);
+      if (t <= 3) budget = Math.min(budget, 40);
+      const teachShare = 0.58;
+      const tea = budget * teachShare, res = budget - tea;
+      const revS = rep.S.income - rep.S.overage, revH = rep.H.income - rep.H.overage;
+      const wS = (Math.max(0, revS) + 12) / (Math.max(0, revS) + Math.max(0, revH) + 24);
+      return { IRS: res * wS, IRH: res * (1 - wS), ITS: tea * wS, ITH: tea * (1 - wS) };
+    },
+  };
+}
+
+module.exports = {
+  naive, sensible, sharp,
+  naiveScheme, sensibleScheme, sharpScheme,
+};

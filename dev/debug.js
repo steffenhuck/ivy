@@ -8,7 +8,8 @@ const seed = parseInt(process.argv[3] || '1', 10);
 const paramsOverride = process.argv[4] ? JSON.parse(process.argv[4]) : null;
 
 const g = new Game({ seed, playerIndex: 3, params: paramsOverride });
-const strat = strategies[stratName](g.P);
+const stratKey = g.P.world === 'scheme' ? stratName + 'Scheme' : stratName;
+const strat = strategies[stratKey](g.P);
 console.log(`strategy=${stratName} seed=${seed}`);
 console.log('rnd | totals: Hark Wexf Mill PLYR | plyr rank E    F     C    inv  | S:app/off/mat fee thr sbar | H:app/off/mat fee thr sbar');
 for (;;) {
@@ -26,7 +27,7 @@ for (;;) {
   const inv = strat.spend(pre, rep, g.unis[g.playerIndex]);
   const invTot = inv.IRS + inv.ITS + inv.IRH + inv.ITH;
   const rank = pre.table.find(r => r.index === 3).rank;
-  const fmt = (d, f, t) => `${d.applied}/${d.offers}/${d.matric} ${f.toFixed(1)} ${t.toFixed(0)} ${d.sbar ? d.sbar.toFixed(0) : '--'}`;
+  const fmt = (d, f, t) => `${d.applied}/${d.offers}/${d.matric} ${f === undefined ? 'q' : f.toFixed(1)} ${t.toFixed(0)} ${d.sbar ? d.sbar.toFixed(0) : '--'}`;
   console.log(
     `${String(pre.round).padStart(3)} | ${totals.join(' ')} | r${rank} E=${g.unis[3].E.toFixed(0).padStart(4)} F=${rep.F.toFixed(0).padStart(3)} C=${String(rep.C).padStart(3)} I=${invTot.toFixed(0).padStart(3)}` +
     ` | S ${fmt(rep.S, dec.feeS, dec.thrS)} | H ${fmt(rep.H, dec.feeH, dec.thrH)}`);
