@@ -86,6 +86,16 @@ function sharp(P) {
     dir: { S: 1, H: 1 }, lastRev: { S: null, H: null },
   };
   return {
+    // Cards: at a heavy investor's margins bought quality is cheap — accept
+    // everything except the consultancy, whose odds fail the arithmetic,
+    // gated by liquidity (the overage cushion is not for spending).
+    choose(pre) {
+      const c = pre.choice;
+      if (c.id === 'consult') return false;
+      if (pre.round < 4) return c.id === 'donor' || c.id === 'storm' || c.id === 'pilot';
+      const cost = (c.accept && c.accept.cost) || 0;
+      return pre.E >= cost + 40;
+    },
     admissions(pre) {
       // Own league rank (harness plays university index 3).
       const me = pre.table.find(r => r.index === 3);
@@ -236,52 +246,70 @@ function sensibleScheme(P) {
   };
 }
 
-/* 3. SHARP (scheme): exploits the Scheme's structure.
- *  - Volume phase (while bottom): threshold to the floor — DA's rejection
- *    cascade delivers everyone the top three turned away; quotas track
- *    fill + 1 so the seats bill never outruns income.
- *  - Selectivity phase (once clear of the Cash Cow): the Sonmez move —
- *    under-report capacity below demand so the department holds only its
- *    best proposers, raising intake calibre (kappa feeds teaching, teaching
- *    feeds demand) while saving the seats bill; ratchet the threshold.
- *  - Expansion phase (late): grow quotas back toward 8 while they fill,
- *    for income and league points; spend everything by the end. */
+/* 3. SHARP (scheme), second edition. The first edition's Sonmez selectivity
+ * phase (small quotas, high calibre) is no longer best play: with rivals
+ * spending like rationals and the Reckoning crediting their hoards, the
+ * fee income a small quota forgoes is worth more than the calibre it buys.
+ * The second edition's sharp is VOLUME-FIRST:
+ *  - The quota is a free report: declare all 8 seats, always. Income is
+ *    the war chest; DA's rejection cascade keeps the hall full from the
+ *    bottom of the table.
+ *  - The THRESHOLD is the selectivity instrument: whenever the hall fills,
+ *    ratchet the bar and let DA deliver the same volume at higher calibre
+ *    (kappa feeds teaching, teaching feeds demand); unbend fast when the
+ *    hall empties.
+ *  - Scholarships in the overtaking fight: once within striking distance
+ *    of the summit, standing merit pots steer the bright marginal student
+ *    — the only price competition the Scheme permits.
+ *  - Choice cards: accept everything except the consultancy (at a heavy
+ *    investor's margins, bought quality is cheap; the consultancy's odds
+ *    are the one price that fails the arithmetic).
+ *  - Spend everything by the end; the Reckoning is for rivals' hoards. */
 function sharpScheme(P) {
-  const st = { q: { S: 6, H: 6 }, thr: { S: 32, H: 32 }, last: null };
+  const st = { thr: { S: 34, H: 34 }, last: null };
   return {
+    // Cards by phase and liquidity: early on, cash is for compounding —
+    // take only money and insurance (donor, pilot, storm). From mid-game,
+    // buy everything the arithmetic supports; never the consultancy, and
+    // never a purchase that would gut the investment budget.
+    choose(pre) {
+      const c = pre.choice;
+      if (c.id === 'consult') return false;
+      if (pre.round < 5) return c.id === 'donor' || c.id === 'storm' || c.id === 'pilot';
+      const cost = (c.accept && c.accept.cost) || 0;
+      return pre.E >= cost + 25;
+    },
     admissions(pre) {
       const me = pre.table.find(r => r.index === 3);
-      const beat = pre.table.filter(r => r.index !== 3 && (r.broke || r.total < me.total + 5)).length;
-      const t = pre.round;
+      const gapUp = pre.table.filter(r => r.index !== 3 && !r.broke && r.total > me.total)
+        .reduce((a, r) => Math.min(a, r.total - me.total), Infinity);
       if (st.last) {
         for (const f of ['S', 'H']) {
           const d = st.last[f];
-          if (beat === 0) {
-            // volume phase
-            st.thr[f] = 32;
-            st.q[f] = clamp(d.matric + 1, 2, P.capacity);
-          } else if (t < P.rounds - 6) {
-            // selectivity phase: quota just under demand, standards up
-            const demand = Math.max(d.matric, Math.min(d.applied, P.capacity));
-            st.q[f] = clamp(Math.min(demand - 1, st.q[f]), 3, P.capacity);
-            if (d.matric >= st.q[f]) st.thr[f] += 2;
-            else if (d.matric <= st.q[f] - 2) st.thr[f] -= 2;
-          } else {
-            // expansion phase
-            if (d.matric === d.offers) st.q[f] = clamp(st.q[f] + 1, 3, P.capacity);
-            else if (d.matric <= st.q[f] - 2) { st.q[f] = clamp(st.q[f] - 1, 3, P.capacity); st.thr[f] -= 1; }
-          }
+          if (d.matric >= P.capacity) st.thr[f] += 2;      // full: harvest calibre
+          else if (d.matric >= P.capacity - 1) st.thr[f] += 1;
+          else if (d.matric <= 2) st.thr[f] -= 4;          // empty: unbend fast
+          else if (d.matric <= P.capacity - 3) st.thr[f] -= 2;
           st.thr[f] = clamp(st.thr[f], 30, 72);
         }
       }
-      return { qS: st.q.S, thrS: st.thr.S, qH: st.q.H, thrH: st.thr.H };
+      // Merit pots ONLY in a genuine summit fight: second place, the
+      // leader within bonus-reach, and cash to spare. From further down a
+      // stipend flatters nobody — the bright student's next-best option
+      // is simply better than you, pot or no pot.
+      const fighting = me.rank === 2 && gapUp < 18 && pre.E > 40;
+      const pot = fighting ? Math.min(8, P.schMax) : 0;
+      return {
+        qS: P.capacity, thrS: st.thr.S, qH: P.capacity, thrH: st.thr.H,
+        schS: pot, schH: pot,
+      };
     },
     spend(pre, rep, uni) {
       st.last = rep;
       const t = pre.round;
-      // No overage tail in the Scheme: the seats bill is self-inflicted and
-      // known in advance, so reserves stay thin.
-      const reserve = t >= P.rounds ? 0 : 10;
+      // Guaranteed income, self-inflicted bills: reserves stay thin — just
+      // enough to keep next year's rent and pots payable.
+      const reserve = t >= P.rounds ? 0 : 12;
       let budget = Math.max(0, rep.net - reserve);
       if (t <= 3) budget = Math.min(budget, 65);
       const teachShare = 0.58;
@@ -290,6 +318,110 @@ function sharpScheme(P) {
       const wS = (Math.max(0, revS) + 12) / (Math.max(0, revS) + Math.max(0, revH) + 24);
       return { IRS: res * wS, IRH: res * (1 - wS), ITS: tea * wS, ITH: tea * (1 - wS) };
     },
+  };
+}
+
+/* PROBE (both worlds): RUSTAM — the strategy our first reviewer found.
+ * "Spend the full budget equally across the four areas." Admissions are
+ * competent but unremarkable (a sensible-style tracker); ALL available
+ * funds beyond a thin float go into quality, split four ways, every year.
+ * In the Scheme as shipped this reaches the top by ~year five and coasts:
+ * the calibration target for the second edition is that it no longer does. */
+function rustam(P) {
+  const st = { fee: { S: 7, H: 7 }, thr: { S: 50, H: 50 }, last: null };
+  return {
+    admissions() {
+      if (st.last) {
+        for (const f of ['S', 'H']) {
+          const d = st.last[f];
+          if (d.matric > 8) { st.fee[f] += 1; st.thr[f] += 3; }
+          else if (d.matric <= 3) { st.fee[f] -= 1; st.thr[f] -= 2; }
+          if (d.offers > 12) st.thr[f] += 2;
+          st.fee[f] = clamp(st.fee[f], 4.5, P.feeCap - 2);
+          st.thr[f] = clamp(st.thr[f], 40, 70);
+        }
+      }
+      return { feeS: st.fee.S, thrS: st.thr.S, feeH: st.fee.H, thrH: st.thr.H };
+    },
+    spend(pre, rep) {
+      st.last = rep;
+      // Full budget, equal split; only a thin float against the seats bill.
+      const each = Math.max(0, rep.net - 18) / 4;
+      return { IRS: each, ITS: each, IRH: each, ITH: each };
+    },
+  };
+}
+function rustamScheme(P) {
+  const st = { thr: { S: 42, H: 42 }, last: null };
+  return {
+    admissions() {
+      if (st.last) {
+        for (const f of ['S', 'H']) {
+          const d = st.last[f];
+          if (d.matric <= 2) st.thr[f] -= 3;
+          else if (d.matric === d.offers) st.thr[f] += 1;
+          st.thr[f] = clamp(st.thr[f], 34, 66);
+        }
+      }
+      // The quota is a free report: declare everything, always.
+      return { qS: P.capacity, thrS: st.thr.S, qH: P.capacity, thrH: st.thr.H };
+    },
+    spend(pre, rep) {
+      st.last = rep;
+      // No oversubscription risk, so no reserve beyond next year's rent.
+      const each = Math.max(0, rep.net - 14) / 4;
+      return { IRS: each, ITS: each, IRH: each, ITH: each };
+    },
+  };
+}
+
+/* PROBE (both worlds): the SCHOLAR — tests whether the merit scholarship
+ * pot can simply buy the league. Sensible-style admissions, but a heavy
+ * standing pot in both fields every year plus high thresholds to harvest
+ * the calibre it attracts (kappa feeds teaching). If scholarships are
+ * calibrated right this improves on sensible without beating sharp. */
+function scholar(P) {
+  const base = sensible(P);
+  return {
+    admissions() {
+      const d = base.admissions();
+      d.thrS = Math.max(d.thrS, 60); d.thrH = Math.max(d.thrH, 60);
+      d.schS = 12; d.schH = 12;
+      return d;
+    },
+    spend: (pre, rep, uni) => base.spend(pre, rep, uni),
+  };
+}
+function scholarScheme(P) {
+  const base = sensibleScheme(P);
+  return {
+    admissions() {
+      const d = base.admissions();
+      d.thrS = Math.max(d.thrS, 60); d.thrH = Math.max(d.thrH, 60);
+      d.schS = 12; d.schH = 12;
+      return d;
+    },
+    spend: (pre, rep, uni) => base.spend(pre, rep, uni),
+  };
+}
+
+/* PROBE (both worlds): the GAMBLER — accepts every choice card the paper
+ * prints, on an otherwise sensible game. If accept-everything reliably
+ * beats decline-everything (plain sensible), the cards are underpriced. */
+function gambler(P) {
+  const base = sensible(P);
+  return {
+    admissions: () => base.admissions(),
+    spend: (pre, rep, uni) => base.spend(pre, rep, uni),
+    choose: () => true,
+  };
+}
+function gamblerScheme(P) {
+  const base = sensibleScheme(P);
+  return {
+    admissions: () => base.admissions(),
+    spend: (pre, rep, uni) => base.spend(pre, rep, uni),
+    choose: () => true,
   };
 }
 
@@ -329,5 +461,8 @@ function overbooker(P) {
 module.exports = {
   naive, sensible, sharp,
   naiveScheme, sensibleScheme, sharpScheme,
+  rustam, rustamScheme,
+  scholar, scholarScheme,
+  gambler, gamblerScheme,
   overbooker,
 };

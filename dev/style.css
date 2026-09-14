@@ -125,6 +125,11 @@ sup.dag { color: var(--oxblood); font-size: 10px; line-height: 0; }
 .extra-body .news-own { font-size: 15.5px; }
 .extra-card .btn { margin-top: 14px; }
 @media (max-width: 480px) { .extra-card { transform: rotate(-1deg); padding: 12px 14px 14px; } }
+.extra-tbl { min-width: 0 !important; margin-top: 8px; }
+.extra-tbl td, .extra-tbl th { text-align: left !important; }
+.extra-tbl tr.me td { font-weight: 600; }
+.choice-btns { display: flex; gap: 10px; }
+.choice-btns .btn { margin-top: 14px; }
 
 /* ---- Year in review ---- */
 .dcomp { display: block; font-size: 11px; color: var(--faint); font-style: italic; margin-top: 2px; }

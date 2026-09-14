@@ -15,6 +15,7 @@ function runOne(stratName, seed, paramsOverride, world) {
   const strat = strategies[key](g.P);
   for (;;) {
     const pre = g.startRound();
+    if (pre.choice && strat.choose) g.submitChoice(strat.choose(pre));
     const dec = strat.admissions(pre);
     const rep = g.submitAdmissions(dec);
     if (g.phase === 'bankrupt') break;
@@ -27,6 +28,7 @@ function runOne(stratName, seed, paramsOverride, world) {
     initialRank: g.initialRank,
     endowment: g.unis[3].E,
     total: g.unis[3].RS + g.unis[3].TS + g.unis[3].RH + g.unis[3].TH,
+    hist: g.rankHistory,
   };
 }
 
@@ -42,7 +44,12 @@ function summarize(name, results) {
     scoreDist[r.score] = (scoreDist[r.score] || 0) + 1;
   }
   const pct = x => (100 * x / n).toFixed(1).padStart(5) + '%';
+  // Rustam's complaint, formalized: reached rank 1 by the start of year 6
+  // and still held rank 1 at the final reckoning.
+  const coast = results.filter(r =>
+    r.finalRank === 1 && r.hist.slice(0, 6).includes(1)).length;
   return {
+    coast: pct(coast),
     name,
     meanScore: (scoreSum / n).toFixed(2),
     rankPct: ranks.map(x => pct(x)),
@@ -62,7 +69,7 @@ function main() {
     if (args[i] === '--params') paramsOverride = JSON.parse(args[++i]);
     else nSeeds = parseInt(args[i], 10) || nSeeds;
   }
-  const names = ['naive', 'sensible', 'sharp'];
+  const names = ['naive', 'sensible', 'sharp', 'rustam'];
   const P = Object.assign({}, DEFAULT_PARAMS, paramsOverride || {});
   console.log(`seeds=${nSeeds}  rounds=${P.rounds}  delta=${P.delta} gamma=${P.gamma} kappa=${P.kappa} cOver=${P.cOver} r=${P.interest} schemeFee=${P.schemeFee} seatCost=${P.seatCost}`);
   for (const world of ['market', 'scheme']) {
@@ -73,12 +80,13 @@ function main() {
       rows.push(summarize(name, results));
     }
     console.log(`-- world: ${world} --`);
-    console.log('strategy  | meanScore | rank1  rank2  rank3  rank4 | score=3 | score>=1 | score<=0 | bankrupt | meanQ  meanE');
+    console.log('strategy  | meanScore | rank1  rank2  rank3  rank4 | score=3 | score>=1 | score<=0 | bankrupt | coast | meanQ  meanE');
     for (const r of rows) {
       console.log(
         r.name.padEnd(9) + ' | ' + String(r.meanScore).padStart(9) + ' | ' +
         r.rankPct.join(' ') + ' | ' + r.score3.padStart(7) + ' | ' + r.scoreGe1.padStart(8) +
         ' | ' + r.scoreLe0.padStart(8) + ' | ' + r.bankrupt.padStart(8) +
+        ' | ' + r.coast.padStart(5) +
         ' | ' + String(r.meanTotal).padStart(5) + ' ' + String(r.meanE).padStart(6));
     }
   }

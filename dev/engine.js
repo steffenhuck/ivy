@@ -83,10 +83,17 @@
  * nothing; its endowment is frozen where it fell and its qualities keep
  * decaying at delta.
  *
- * Final ranking: the league table computed AFTER round `rounds` quality
- * update (i.e. the table that would open round 21). This means round-20
- * investment still counts, avoiding a degenerate "hoard in the last round"
- * strategy. Score = initial rank - final rank.
+ * Final ranking — the FOUNDERS' RECKONING: the league table computed AFTER
+ * round `rounds` quality update (so round-20 investment still counts), with
+ * one addition announced in the rules from year one: each university's
+ * remaining endowment converts into league-table quality at the steep rate
+ * of 1 point per reckonPerPoint (default 15) — max(0, E) / reckonPerPoint,
+ * identical in both worlds. Money is never worthless, hoards finally count,
+ * and spend-now-versus-save is a real choice (at the margin, investment
+ * dominates until I ~ (gamma * reckonPerPoint / 2)^2 per field). Rows carry
+ * total (quality), reckon (the conversion) and grand (their sum); ranking is
+ * by grand. Score = initial rank - final rank. A player bankruptcy ends the
+ * game where it fell, on the plain table — the Reckoning is for survivors.
  * ========================================================================= */
 
 /* ----------------------------- Seeded RNG ------------------------------- */
@@ -144,6 +151,37 @@ const DEFAULT_PARAMS = {
   aiBalancedCap: 46,  // balanced incumbent's total plan ceiling (even in defense)
   aiCashHi: 11,       // cash cow's upkeep ceiling
   aiCashLo: 8,        // cash cow's upkeep floor (drawn from hoard)
+  // Scheme rationality: with fee income guaranteed by the clearing house,
+  // precautionary cash floats are pointless — scheme-world AIs keep only
+  // this thin float instead of their market-bred reserves (15-20), and
+  // their institutional spending caps loosen by the same logic (a plan
+  // ceiling calibrated against market risk is too timid where revenue
+  // cannot surprise you).
+  aiSchemeFloat: 8,
+  aiSchemeCapMult: 1.35,
+
+  // Choice cards (player-only): per-round offer probability and the first
+  // round the paper prints one (year one is confusing enough).
+  choiceProb: 0.3,
+  choiceFromRound: 2,
+
+  // Merit scholarships (both worlds): a per-field pot, committed at the
+  // admissions desk and spent in full whether or not anyone comes (endowed
+  // stipends are advertised, not refunded). Students scoring at or above
+  // schBar value the advertising college schAlpha * sqrt(pot) utility
+  // points higher — in the market's choice among offers and in the
+  // Scheme's preference lists identically. Concave, so a pot cannot be
+  // a dominant strategy; capped at schMax per field per year.
+  schBar: 70,
+  schAlpha: 2.2,
+  schMax: 20,
+
+  // Founders' Reckoning: endowment per league point at the final table,
+  // and the most points the credit can be worth (the auditors regard cash
+  // beyond that as evidence of a want of imagination). The cap is what
+  // keeps the incumbents' thousand-k hoards from drowning the quality race.
+  reckonPerPoint: 15,
+  reckonCapPoints: 8,
 
   // Starting universities, ordered by index (initial league rank order).
   // Each has a native AI personality used whenever the player doesn't run it.
@@ -202,17 +240,75 @@ function pickEvent(r) {
   return EVENTS[EVENTS.length - 1];
 }
 
+/* --------------------------- Choice cards --------------------------------
+ * A second class of event, PLAYER-ONLY: the paper prints a situation and
+ * the player must decide before the year proceeds. Mechanics only —
+ * narrative lives in the UI, keyed by id. Drawn on the same separate
+ * events stream (three draws per round, consumed unconditionally, so the
+ * shock stream and cohort stream are untouched by whatever the player
+ * decides). Each card is offered at most once per game.
+ *
+ * Branch normal form: accept / decline each carry
+ *   { cost, p, onSuccess: {deltaE, self, target}, onFail: {...} }
+ * cost is paid whenever the branch is taken; with probability p the
+ * onSuccess effects apply, else onFail (p omitted = 1). decline omitted
+ * means "nothing happens" — and decline is also the automatic resolution
+ * when nobody answers the paper (an unattended college buys no insurance).
+ * targetBy names the quality by which the victim rival is picked (the
+ * non-broke leader in that field). minE gates the OFFER: a card whose
+ * price the player plainly cannot pay is never printed.
+ *
+ * PRICING DISCIPLINE: money buys quality at g(I) = gamma*sqrt(I) through
+ * the ordinary investment channel, so a quality-for-money card is only
+ * ever interesting if its yield beats ~1.5*sqrt(cost) (poaches add the
+ * zero-sum premium: the victim's loss is worth a rank at the margin).
+ * One card (consult) is deliberately priced below the technology — the
+ * reader who checks the arithmetic keeps their money. */
+const CHOICE_CARDS = [
+  { id: 'poach_rs', weight: 2, targetBy: 'RS', minE: 25,
+    accept: { cost: 15, p: 0.55, onSuccess: { self: { RS: +4 }, target: { RS: -4 } }, onFail: { deltaE: +7 } } },
+  { id: 'poach_rh', weight: 2, targetBy: 'RH', minE: 25,
+    accept: { cost: 15, p: 0.55, onSuccess: { self: { RH: +4 }, target: { RH: -4 } }, onFail: { deltaE: +7 } } },
+  { id: 'poach_ts', weight: 2, targetBy: 'TS', minE: 20,
+    accept: { cost: 10, p: 0.6, onSuccess: { self: { TS: +3 }, target: { TS: -3 } }, onFail: { deltaE: +5 } } },
+  { id: 'donor',    weight: 2, minE: 0,
+    accept: { onSuccess: { deltaE: +24, self: { TH: -3 } } } },
+  { id: 'scandal',  weight: 2, minE: 22,
+    accept: { cost: 12, onSuccess: {} },
+    decline: { p: 0.5, onSuccess: {}, onFail: { self: { TH: -3, RH: -2 } } } },
+  { id: 'pilot',    weight: 2, minE: 18,
+    accept: { cost: 8, p: 0.65, onSuccess: { deltaE: +20, self: { TS: +1 } }, onFail: {} } },
+  { id: 'congress', weight: 1, minE: 24,
+    accept: { cost: 14, onSuccess: { self: { RS: +4, RH: +4 } } } },
+  { id: 'consult',  weight: 2, minE: 20,
+    accept: { cost: 10, p: 0.35, onSuccess: { self: { RS: +1, TS: +1, RH: +1, TH: +1 } }, onFail: {} } },
+  { id: 'storm',    weight: 2, minE: 16,
+    accept: { cost: 6, onSuccess: {} },
+    decline: { p: 0.6, onSuccess: {}, onFail: { deltaE: -18 } } },
+  { id: 'stipend',  weight: 2, minE: 18,
+    accept: { cost: 8, onSuccess: { self: { TS: +4, RS: +1 } } } },
+  { id: 'merger',   weight: 1, minE: 30,
+    accept: { cost: 20, p: 0.6, onSuccess: { self: { TH: +7, RH: +5 } }, onFail: { deltaE: +10 } } },
+  { id: 'archive',  weight: 1, minE: 22,
+    accept: { cost: 12, onSuccess: { self: { RH: +6 } } } },
+];
+
 /* -------------------- Scheme world: deferred acceptance -------------------
  * Student-proposing DA for one field. Students rank the four departments by
  * T_f + theta * R_f (ties broken by tiny rng perturbation); departments
  * rank acceptable students (s >= threshold) by school score and hold at
  * most their declared quota. Terminates in <= 4 proposals per student and
  * yields the student-optimal stable matching. */
-function runDA(field, students, decisions, unis, rng) {
+function runDA(field, students, decisions, unis, rng, P) {
   const n = unis.length;
   const proposers = students.map(a => {
     const order = unis
-      .map(u => ({ i: u.index, v: (field === 'S' ? u.TS + a.theta * u.RS : u.TH + a.theta * u.RH) + rng() * 1e-9 }))
+      .map(u => {
+        const d = decisions[u.index];
+        const pot = d ? (field === 'S' ? d.schS : d.schH) : 0;
+        const merit = (P && a.s >= P.schBar && pot > 0) ? P.schAlpha * Math.sqrt(pot) : 0;
+        return { i: u.index, v: (field === 'S' ? u.TS + a.theta * u.RS : u.TH + a.theta * u.RH) + merit + rng() * 1e-9 };
+      })
       .sort((x, y) => y.v - x.v)
       .map(x => x.i);
     return { a, order, next: 0 };
@@ -305,10 +401,11 @@ function aiPrestige(P) {
     // Scheme only: prestige wounded in the published table opens the
     // war chest — quality is the only competition the Scheme permits.
     spend(uni, net, P2, rep) {
-      const investable = Math.max(0, net - 15);
+      const investable = Math.max(0, net - (P2.world === 'scheme' ? P2.aiSchemeFloat : 15));
       const wounded = P2.world === 'scheme' && (uni.rank >= 3 || uni.gapBelow < 5);
       const drawE = wounded ? 0.3 : 0.15;
-      const cap = wounded ? P2.aiPrestigeCap + 18 : P2.aiPrestigeCap;
+      let cap = wounded ? P2.aiPrestigeCap + 18 : P2.aiPrestigeCap;
+      if (P2.world === 'scheme') cap *= P2.aiSchemeCapMult;
       // Bounded ambition: even flush with cash it won't spend beyond its
       // institutional plan (~48/round) — the headroom a challenger needs.
       const budget = Math.min(investable, 1.2 * rep.F + drawE * Math.max(0, uni.E), cap);
@@ -369,10 +466,11 @@ function aiCashCow(P) {
     // Scheme only: with no price lever to defend its volume, a Cash Cow
     // that has been overtaken in the table fights back from the hoard.
     spend(uni, net, P2, rep) {
-      const investable = Math.max(0, net - 15);
+      const investable = Math.max(0, net - (P2.world === 'scheme' ? P2.aiSchemeFloat : 15));
       const fight = P2.world === 'scheme' && (uni.rank >= 4 || uni.gapBelow < 4);
-      const lo = fight ? P2.aiCashLo + 18 : P2.aiCashLo;
-      const hi = fight ? P2.aiCashHi + 24 : P2.aiCashHi;
+      let lo = fight ? P2.aiCashLo + 18 : P2.aiCashLo;
+      let hi = fight ? P2.aiCashHi + 24 : P2.aiCashHi;
+      if (P2.world === 'scheme') { lo *= P2.aiSchemeCapMult; hi *= P2.aiSchemeCapMult; }
       const budget = Math.min(investable, Math.max(0.35 * rep.F, lo), hi);
       const each = budget / 4;
       return { IRS: each, ITS: each, IRH: each, ITH: each };
@@ -445,7 +543,7 @@ function aiBalanced(P) {
     // scaled down if funds are short. Surplus endowment simply sits at
     // interest — the complacency a sharp challenger can exploit.
     spend(uni, net, P2) {
-      const avail = Math.max(0, net - 20);
+      const avail = Math.max(0, net - (P2.world === 'scheme' ? P2.aiSchemeFloat : 20));
       let tgt = uni.ai.target;
       // Scheme only: the summit defends itself against whoever is coming.
       // The league table is public, so the incumbent can see the nearest
@@ -471,7 +569,8 @@ function aiBalanced(P) {
       };
       let tot = want.IRS + want.ITS + want.IRH + want.ITH;
       // Even Harkness has a senate: the plan, defensive or not, is capped.
-      const cap = Math.min(avail, P2.aiBalancedCap);
+      const planCap = P2.world === 'scheme' ? P2.aiBalancedCap * P2.aiSchemeCapMult : P2.aiBalancedCap;
+      const cap = Math.min(avail, planCap);
       if (tot > cap && tot > 0) {
         const k = cap / tot;
         for (const q in want) want[q] *= k;
@@ -516,6 +615,9 @@ class Game {
 
     this.round = 0;
     this.pStem = P.pStemStart;
+    this._choiceOffered = new Set();
+    this.choiceLog = [];
+    this.pendingChoice = null;
     this.phase = 'pre'; // pre -> admissions -> spend -> (admissions|over|bankrupt)
     this.initialRank = this.rankOf(this.playerIndex);
     this.rankHistory = [this.initialRank]; // rank at start of each round; last entry = final
@@ -539,6 +641,25 @@ class Game {
     return rows;
   }
   rankOf(idx) { return this.leagueTable().find(r => r.index === idx).rank; }
+
+  /* The Founders' Reckoning: the final table, with remaining endowment
+   * converted to quality at 1 point per reckonPerPoint. Ties by quality
+   * total, then endowment, then index. */
+  finalReckoning() {
+    const P = this.P;
+    const rows = this.unis.map(u => ({
+      index: u.index, name: u.name,
+      RS: u.RS, TS: u.TS, RH: u.RH, TH: u.TH,
+      total: u.RS + u.TS + u.RH + u.TH,
+      reckon: Math.min(P.reckonCapPoints, Math.max(0, u.E) / P.reckonPerPoint),
+      broke: u.broke,
+      _E: u.E,
+    }));
+    for (const r of rows) r.grand = r.total + r.reckon;
+    rows.sort((a, b) => (b.grand - a.grand) || (b.total - a.total) || (b._E - a._E) || (a.index - b.index));
+    rows.forEach((r, i) => { r.rank = i + 1; delete r._E; });
+    return rows;
+  }
 
   /* Begin a round: update field-preference drift, draw the fresh cohort,
    * publish the league table and cohort statistics. */
@@ -577,6 +698,33 @@ class Game {
       }
     }
     this.events = events;
+    // The player's post: a choice card may be offered (player-only). Three
+    // numbers — occurrence, selection, success — are drawn every round
+    // unconditionally, so the shock stream and the cohort stream are
+    // identical whatever the player decides. The success roll is drawn
+    // EAGERLY, at offer time, and used only if the gamble is taken.
+    const rCOcc = this.rngE(), rCSel = this.rngE(), rCSucc = this.rngE();
+    this.pendingChoice = null;
+    if (this.round >= P.choiceFromRound && rCOcc < P.choiceProb) {
+      const me = this.unis[this.playerIndex];
+      const pool = CHOICE_CARDS.filter(c => !this._choiceOffered.has(c.id)
+        && me.E >= c.minE
+        && (!c.targetBy || this.unis.some(u => u.index !== this.playerIndex && !u.broke)));
+      const tw = pool.reduce((a, c) => a + c.weight, 0);
+      if (tw > 0 && !me.broke) {
+        let x = rCSel * tw, card = pool[pool.length - 1];
+        for (const c of pool) { x -= c.weight; if (x < 0) { card = c; break; } }
+        let target = null;
+        if (card.targetBy) {
+          for (const u of this.unis) {
+            if (u.index === this.playerIndex || u.broke) continue;
+            if (!target || u[card.targetBy] > target[card.targetBy]) target = u;
+          }
+        }
+        this._choiceOffered.add(card.id);
+        this.pendingChoice = { card, target, rSucc: rCSucc };
+      }
+    }
     if (this.round >= 2) {
       let rs = 0, rh = 0;
       for (const u of this.unis) { rs += u.RS; rh += u.RH; }
@@ -615,13 +763,66 @@ class Game {
     }
     if (this.round > 1) this.rankHistory.push(table.find(r => r.index === this.playerIndex).rank);
     this.phase = 'admissions';
-    return { round: this.round, table, cohortStats: this.cohortStats, events };
+    const pc = this.pendingChoice;
+    const choice = pc ? {
+      id: pc.card.id,
+      accept: pc.card.accept, decline: pc.card.decline || null,
+      target: pc.target ? { index: pc.target.index, name: pc.target.name } : null,
+    } : null;
+    // The player's own endowment is their private information — published
+    // to them (and only them) at the desk, where scholarship and card
+    // decisions are made.
+    return {
+      round: this.round, table, cohortStats: this.cohortStats, events, choice,
+      E: this.unis[this.playerIndex].E,
+    };
+  }
+
+  /* Resolve the round's choice card (see CHOICE_CARDS). Must be called in
+   * the admissions phase; submitAdmissions auto-declines an unanswered
+   * card. The effects — money and quality, self and victim — apply
+   * immediately, before the year's market/match runs. */
+  submitChoice(accepted) {
+    if (this.phase !== 'admissions') throw new Error('bad phase ' + this.phase);
+    const pc = this.pendingChoice;
+    if (!pc) throw new Error('no pending choice');
+    this.pendingChoice = null;
+    const me = this.unis[this.playerIndex];
+    const branch = accepted ? pc.card.accept : (pc.card.decline || null);
+    const rec = {
+      round: this.round, id: pc.card.id, accepted: !!accepted,
+      target: pc.target ? { index: pc.target.index, name: pc.target.name } : null,
+    };
+    if (branch) {
+      if (branch.cost) { me.E -= branch.cost; rec.cost = branch.cost; }
+      const p = branch.p === undefined ? 1 : branch.p;
+      rec.success = pc.rSucc < p;
+      const eff = (rec.success ? branch.onSuccess : branch.onFail) || {};
+      if (eff.deltaE) {
+        let d = eff.deltaE;
+        if (d < 0 && -d > Math.max(0, me.E - 5)) { d = -Math.max(0, me.E - 5); rec.truncated = true; }
+        me.E += d;
+        rec.deltaE = d;
+      }
+      if (eff.self) {
+        rec.deltaQ = {};
+        for (const q in eff.self) { me[q] = Math.max(0, me[q] + eff.self[q]); rec.deltaQ[q] = eff.self[q]; }
+      }
+      if (eff.target && pc.target) {
+        rec.targetDeltaQ = {};
+        for (const q in eff.target) { pc.target[q] = Math.max(0, pc.target[q] + eff.target[q]); rec.targetDeltaQ[q] = eff.target[q]; }
+      }
+    }
+    this.choiceLog.push(rec);
+    this.lastChoice = rec;
+    return rec;
   }
 
   /* Step 1 — Admissions. The player's {feeS, thrS, feeH, thrH} plus each
    * AI's simultaneous choice; then automatic market clearing. */
   submitAdmissions(playerDec) {
     if (this.phase !== 'admissions') throw new Error('bad phase ' + this.phase);
+    if (this.pendingChoice) this.submitChoice(false); // the paper goes unanswered
     const P = this.P;
     const scheme = P.world === 'scheme';
     const decisions = new Array(this.unis.length);
@@ -638,6 +839,12 @@ class Game {
                 feeH: Math.max(0, +playerDec.feeH || 0), thrH: +playerDec.thrH || 0,
               })
         : u.controller.admissions(u);
+      // Merit scholarship pots (both worlds): every decision carries them,
+      // clamped to [0, schMax]; AIs that don't set them run pots of zero.
+      const d = decisions[u.index];
+      const src = (u.index === this.playerIndex) ? playerDec : d;
+      d.schS = clamp(+src.schS || 0, 0, P.schMax);
+      d.schH = clamp(+src.schH || 0, 0, P.schMax);
     }
     this._decisions = decisions;
 
@@ -653,7 +860,7 @@ class Game {
       // ledger and bankruptcy code below are identical across worlds.
       for (const f of ['S', 'H']) {
         const students = this.applicants.filter(a => a.f === f);
-        const { held, proposedTo } = runDA(f, students, decisions, this.unis, this.rng);
+        const { held, proposedTo } = runDA(f, students, decisions, this.unis, this.rng, P);
         for (const u of this.unis) {
           const r = reports[u.index][f];
           const d = decisions[u.index];
@@ -685,7 +892,10 @@ class Game {
       if (!offers.length) continue; // exits, no consequence
       let best = [], bestV = -Infinity;
       for (const u of offers) {
-        const v = (f === 'S' ? u.TS + a.theta * u.RS : u.TH + a.theta * u.RH);
+        const d = decisions[u.index];
+        const pot = f === 'S' ? d.schS : d.schH;
+        const merit = (a.s >= P.schBar && pot > 0) ? P.schAlpha * Math.sqrt(pot) : 0;
+        const v = (f === 'S' ? u.TS + a.theta * u.RS : u.TH + a.theta * u.RH) + merit;
         if (v > bestV + 1e-12) { bestV = v; best = [u]; }
         else if (Math.abs(v - bestV) <= 1e-12) best.push(u);
       }
@@ -707,8 +917,10 @@ class Game {
         delete r.sSum;
       }
       const rep = reports[u.index];
+      const d = this._decisions[u.index];
       rep.F = rep.S.income + rep.H.income;
-      rep.C = rep.S.overage + rep.H.overage;
+      rep.sch = d ? d.schS + d.schH : 0; // scholarship fund, committed in full
+      rep.C = rep.S.overage + rep.H.overage + rep.sch;
       rep.net = u.E + rep.F - rep.C; // funds available for investment
     }
     this._reports = reports;
@@ -732,7 +944,7 @@ class Game {
     return {
       bankrupt: this.phase === 'bankrupt',
       S: playerRep.S, H: playerRep.H,
-      F: playerRep.F, C: playerRep.C, net: playerRep.net,
+      F: playerRep.F, C: playerRep.C, sch: playerRep.sch, net: playerRep.net,
     };
   }
 
@@ -789,7 +1001,7 @@ class Game {
     });
     if (this.round >= P.rounds) {
       this.phase = 'over';
-      const finalTable = this.leagueTable();
+      const finalTable = this.finalReckoning();
       this.finalRank = finalTable.find(r => r.index === this.playerIndex).rank;
       this.rankHistory.push(this.finalRank);
       this.score = this.initialRank - this.finalRank;
@@ -800,6 +1012,6 @@ class Game {
   }
 }
 
-const THE_LEAGUE = { Game, DEFAULT_PARAMS, EVENTS, makeRng, maintInvest, clamp };
+const THE_LEAGUE = { Game, DEFAULT_PARAMS, EVENTS, CHOICE_CARDS, makeRng, maintInvest, clamp };
 if (typeof module !== 'undefined' && module.exports) module.exports = THE_LEAGUE;
 if (typeof globalThis !== 'undefined') globalThis.THE_LEAGUE = THE_LEAGUE;

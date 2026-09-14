@@ -59,6 +59,115 @@
     strike: 'Industrial action has been resolved amicably, after a term of no teaching whatsoever. Teaching −2, both fields; amity is invoiced separately.',
     inspectorate: 'The quality inspectorate has visited. Its report praises the lawns. HSS teaching −2.',
   };
+  /* Choice-card narrative, keyed by engine card id. Mechanics (costs, odds,
+   * effects) are rendered from the card definition itself — the Ledger
+   * prints the odds it is given, and only the prose is its own. {T} is the
+   * victim college where the card names one. */
+  const CHOICE_TEXT = {
+    poach_rs: {
+      head: 'A physicist, approachable',
+      body: 'Word reaches the Lodge that {T}&rsquo;s professor of physics &mdash; the one the citations follow &mdash; has quarrelled with his dean about laboratory space, and has let it be known, through channels that do not exist, that he might be approachable. Physicists of consequence enjoy being courted and are under no obligation to conclude.',
+      accept: 'Court him', decline: 'Let him quarrel',
+      success: 'He arrives before Michaelmas, with two postdoctoral researchers and a grudge. The Ledger reports the appointment as &lsquo;a coup&rsquo;, which for once is the word.',
+      fail: 'He has used the College&rsquo;s offer to extract a larger laboratory from his own dean &mdash; which was, the Ledger now understands, the point of the quarrel. Part of the retainer is recovered.',
+    },
+    poach_rh: {
+      head: 'The historian is restless',
+      body: 'The historian who is {T}&rsquo;s HSS research entry in all but name has been passed over for their deanship, and dines out on the fact. A discreet approach would cost real money, and historians, unlike physicists, write down what happens to them.',
+      accept: 'Make the approach', decline: 'Admire from afar',
+      success: 'The historian arrives with nine filing cabinets and a lecture series already titled. {T} describes the departure as &lsquo;amicable&rsquo;; the memoir will say otherwise.',
+      fail: 'The historian reads the College&rsquo;s letter aloud at {T}&rsquo;s high table, to applause. Part of the retainer is recovered; the anecdote is theirs forever.',
+    },
+    poach_ts: {
+      head: 'A teacher of reputation',
+      body: 'The lecturer who fills {T}&rsquo;s largest theatre &mdash; students transfer courses to be shouted at by him &mdash; is rumoured to be tired of his colleagues. Teaching of that quality moves institutions when it moves at all.',
+      accept: 'Tempt him', decline: 'Respect the timetable',
+      success: 'He brings his lecture notes, his following, and a list of grievances the College finds instructive. The theatre fills by week two.',
+      fail: 'His colleagues, alerted, have made peace with him at some expense. Half the inducement returns; the grievances stay where they were.',
+    },
+    donor: {
+      head: 'A donor, with conditions',
+      body: 'An industrialist offers the College &pound;24k, on the sole condition that it adopt his views on the humanities curriculum, which he has had printed and bound. The faculty&rsquo;s view of his views is known. The money, however, is real.',
+      accept: 'Take the money', decline: 'Decline, with regret',
+      success: 'The cheque clears. The curriculum acquires a chapter the lecturers read aloud in a certain tone; the students notice the tone.',
+    },
+    scandal: {
+      head: 'A matter best not printed',
+      body: 'A story concerning a senior member of the College has reached the Ledger&rsquo;s news desk, which has reached, in turn, for the telephone. For &pound;12k the College may purchase the exclusive rights to its own embarrassment &mdash; this newspaper prints commerce above gossip. Otherwise the editors will weigh the public interest, which weighs about even.',
+      accept: 'Buy the story', decline: 'Let them print',
+      success: 'The story is filed under &lsquo;acquired features, unpublished&rsquo;, the fattest drawer in the building.',
+      declineOk: 'The editors, on reflection, spike the story in favour of a livelier one. Nothing appears; nothing was paid.',
+      declineFail: 'The story runs on the front page, with a photograph the College considers unflattering and the Ledger considers excellent.',
+    },
+    pilot: {
+      head: 'The Ministry&rsquo;s pilot',
+      body: 'The Ministry proposes that the College host a pilot programme in &lsquo;skills&rsquo;: &pound;8k to prepare, a grant of &pound;20k should the inspectors approve, and whatever a Ministry plaque does for the seminars. Inspectors approve roughly two times in three, mostly of the biscuits.',
+      accept: 'Host the pilot', decline: 'Return the forms',
+      success: 'The inspectors approve. The grant arrives; the plaque is bolted where prospective parents pause.',
+      fail: 'The inspectors do not approve. The &pound;8k has become a report, which recommends a further report.',
+    },
+    congress: {
+      head: 'The Congress comes to town',
+      body: 'The sector&rsquo;s disciplinary congress seeks a host: a week of porters, halls, name-badges and wine, at the College&rsquo;s expense &mdash; and the College&rsquo;s name on every volume of the proceedings, both fields of research the better for it. Certain, expensive, and remembered.',
+      accept: 'Host the Congress', decline: 'Plead the roof',
+      success: 'Four hundred scholars attend, two hundred complain about the rooms, and every one of them cites the venue. The proceedings carry the College&rsquo;s crest.',
+    },
+    consult: {
+      head: 'Consultants at the gate',
+      body: 'A firm of rankings consultants offers, for &pound;10k, a &lsquo;holistic uplift across all four metrics&rsquo;. The brochure is glossy; the references trail off; the odds, on the Ledger&rsquo;s arithmetic, favour the firm.',
+      accept: 'Engage the firm', decline: 'Show them the door',
+      success: 'Remarkably, something improves everywhere at once. The firm has already framed the correlation for its next brochure.',
+      fail: 'The firm delivers a lever-arch file and an invoice. The metrics remain as audited.',
+    },
+    storm: {
+      head: 'The glass is falling',
+      body: 'The insurers offer a rider against the season&rsquo;s storms at &pound;6k. The porter, consulting his knee, rates the chance of a bad blow at two in five. The insurers, consulting their tables, agree with the knee.',
+      accept: 'Take the rider', decline: 'Chance the weather',
+      success: 'The premium is paid and the weather, knowing this, goes elsewhere.',
+      declineOk: 'The storms spend themselves on the neighbouring county, which had insured.',
+      declineFail: 'The storm takes slates, fences and the pavilion scoreboard. The builders quote &pound;18k and condolences.',
+    },
+    stipend: {
+      head: 'A prodigy, expensive',
+      body: 'A school-leaver of alarming promise will matriculate here &mdash; bringing the seminar culture such students bring &mdash; if endowed with a stipend of &pound;8k and, the letter mentions in passing, a standing desk.',
+      accept: 'Endow the stipend', decline: 'Praise economy',
+      success: 'The prodigy arrives, corrects a proof in week three, and raises the tone of every room entered. The desk stands.',
+    },
+    merger: {
+      head: 'St Edmund&rsquo;s, available',
+      body: 'St Edmund&rsquo;s &mdash; a small private college of good teaching and no money &mdash; approaches with what it calls a partnership and its creditors call a rescue. Its faculty may flourish under the College&rsquo;s roof, or scatter under its lawyers; the Ledger rates the roof at six chances in ten.',
+      accept: 'Absorb St Edmund&rsquo;s', decline: 'Send condolences',
+      success: 'The absorption holds. St Edmund&rsquo;s tutors arrive with their teaching manners intact and their gratitude nearly so.',
+      fail: 'The lawyers find a covenant nobody had read. The faculty scatters; a portion of the outlay is clawed back from the wreckage.',
+    },
+    archive: {
+      head: 'The Marchmont papers',
+      body: 'The Marchmont archive &mdash; letters, ledgers, and one improbable diary &mdash; is offered privately at &pound;12k, certain to make the College&rsquo;s HSS research the envy of the sector&rsquo;s footnotes.',
+      accept: 'Buy the papers', decline: 'Let the auction have them',
+      success: 'The papers arrive in fourteen crates. Three doctorates begin by Christmas; the diary is kept under glass and, prudently, a cloth.',
+    },
+  };
+
+  /* Mechanics of a card branch, rendered from the engine's own definition
+   * — the Ledger prints exactly the odds and sums the engine will use. */
+  function describeEffects(eff, targetName) {
+    if (!eff) return 'nothing';
+    const bits = [];
+    if (eff.deltaE) bits.push(`${eff.deltaE > 0 ? '+' : '&minus;'}${money(Math.abs(eff.deltaE))} to the endowment`);
+    if (eff.self) for (const [q, d] of Object.entries(eff.self)) bits.push(`your ${QLABEL[q]} ${d > 0 ? '+' : '&minus;'}${Math.abs(d)}`);
+    if (eff.target && targetName) for (const [q, d] of Object.entries(eff.target)) bits.push(`${esc(targetName)}&rsquo;s ${QLABEL[q]} ${d > 0 ? '+' : '&minus;'}${Math.abs(d)}`);
+    return bits.length ? bits.join(', ') : 'nothing';
+  }
+  function describeBranch(label, br, targetName) {
+    if (!br) return `<tr><td><b>${label}</b></td><td colspan="2">nothing happens</td></tr>`;
+    const p = br.p === undefined ? 1 : br.p;
+    const cost = br.cost ? `pay ${money(br.cost)}` : 'free';
+    const outcome = p >= 1
+      ? describeEffects(br.onSuccess, targetName)
+      : `${Math.round(p * 100)}%: ${describeEffects(br.onSuccess, targetName)} &middot; else: ${describeEffects(br.onFail, targetName)}`;
+    return `<tr><td><b>${label}</b></td><td>${cost}</td><td>${outcome}</td></tr>`;
+  }
+
   const RIVAL_LINES = {
     moneyPlus: [
       '{name} announces a bequest; the flag flies at half-mast, briskly.',
@@ -84,7 +193,7 @@
   const inScheme = () => game && game.P.world === 'scheme';
   const WORLD_NAME = { market: 'The Open Market', scheme: 'The National Admissions Scheme' };
   let prevRanks = null;     // last year's ranks by uni index (for arrows)
-  let dec = { feeS: 8, thrS: 55, feeH: 8, thrH: 55 };   // sticky controls
+  let dec = { feeS: 8, thrS: 55, feeH: 8, thrH: 55, schS: 0, schH: 0 };   // sticky controls
   let inv = { IRS: 0, ITS: 0, IRH: 0, ITH: 0 };
 
   /* ------------------------------ helpers ------------------------------ */
@@ -180,9 +289,31 @@
   /* LATE EXTRA — full-viewport interstitial shown before the desk in any
    * year with news. Player events as full paragraphs; rivals as their
    * one-liners. Dismiss reveals the admissions desk beneath. */
-  function showExtra() {
+  function showExtra(then) {
     const stale = document.getElementById('extraBack');
     if (stale) stale.remove();
+    // The particulars: who was hit, what changed, by how much. Player
+    // effects in full; rivals' quality effects are public (the table
+    // prints them), rivals' money stays their business.
+    const partRows = (pre.events || []).map(ev => {
+      const u = game.unis[ev.index];
+      const mine = ev.index === game.playerIndex;
+      let effect;
+      if (ev.deltaE !== undefined) {
+        effect = mine
+          ? `endowment ${ev.deltaE < 0 ? '&minus;' : '+'}${money(Math.abs(ev.deltaE))}`
+          : (ev.deltaE >= 0 ? 'money in; the sum is theirs to know' : 'money out; the sum is theirs to know');
+      } else {
+        effect = Object.entries(ev.deltaQ)
+          .map(([q, d]) => `${QLABEL[q]} ${d < 0 ? '&minus;' : '+'}${Math.abs(d)}`).join(', ');
+      }
+      return `<tr class="${mine ? 'me' : ''}"><td>${esc(u.name)}${mine ? ' <b>&#9670;</b>' : ''}</td><td>${effect}</td></tr>`;
+    }).join('');
+    const particulars = partRows ? `
+      <table class="report extra-tbl">
+        <thead><tr><th>The particulars</th><th>Effect</th></tr></thead>
+        <tbody>${partRows}</tbody>
+      </table>` : '';
     const div = document.createElement('div');
     div.className = 'extra-backdrop';
     div.id = 'extraBack';
@@ -193,11 +324,71 @@
           ${newsData.map(n => n.me
             ? `<p class="news-own">${n.para}</p>`
             : `<p class="news-rival">${n.para}</p>`).join('')}
+          ${particulars}
         </div>
         <button class="btn oxblood" id="extraRead">Read on</button>
       </div>`;
     document.body.appendChild(div);
-    div.querySelector('#extraRead').addEventListener('click', () => div.remove());
+    div.querySelector('#extraRead').addEventListener('click', () => {
+      div.remove();
+      if (then) then();
+    });
+  }
+
+  /* The Ledger's post: a choice card. The player decides before the year
+   * proceeds; the outcome (from the engine) is shown at once, the desk
+   * re-rendered after, since cards move money and quality. */
+  function showChoiceCard() {
+    const c = pre.choice;
+    const txt = CHOICE_TEXT[c.id] || { head: c.id, body: '', accept: 'Accept', decline: 'Decline' };
+    const tName = c.target ? c.target.name : null;
+    const body = txt.body.replace(/\{T\}/g, tName ? esc(tName) : 'a rival');
+    const stale = document.getElementById('choiceBack');
+    if (stale) stale.remove();
+    const div = document.createElement('div');
+    div.className = 'extra-backdrop';
+    div.id = 'choiceBack';
+    div.innerHTML = `
+      <div class="extra-card" role="dialog" aria-modal="true" aria-label="The Ledger's post">
+        <div class="extra-mast">The Morning Ledger &middot; By Appointment</div>
+        <div class="extra-body">
+          <p class="news-own"><b>${txt.head}.</b> ${body}</p>
+          <table class="report extra-tbl">
+            <thead><tr><th></th><th>Price</th><th>Consequence</th></tr></thead>
+            <tbody>
+              ${describeBranch(txt.accept, c.accept, tName)}
+              ${describeBranch(txt.decline, c.decline, tName)}
+            </tbody>
+          </table>
+        </div>
+        <div class="choice-btns">
+          <button class="btn oxblood" id="chAccept">${txt.accept}</button>
+          <button class="btn" id="chDecline">${txt.decline}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(div);
+    const resolve = (accepted) => {
+      const rec = game.submitChoice(accepted);
+      let outcome;
+      if (accepted) outcome = rec.success ? txt.success : txt.fail;
+      else if (c.decline) outcome = rec.success ? txt.declineOk : txt.declineFail;
+      const numbers = [];
+      if (rec.cost) numbers.push(`&minus;${money(rec.cost)}`);
+      if (rec.deltaE) numbers.push(`${rec.deltaE > 0 ? '+' : '&minus;'}${money(Math.abs(rec.deltaE))}`);
+      if (rec.deltaQ) for (const [q, d] of Object.entries(rec.deltaQ)) numbers.push(`${QLABEL[q]} ${d > 0 ? '+' : '&minus;'}${Math.abs(d)}`);
+      if (rec.targetDeltaQ && tName) for (const [q, d] of Object.entries(rec.targetDeltaQ)) numbers.push(`${esc(tName)} ${QLABEL[q]} ${d > 0 ? '+' : '&minus;'}${Math.abs(d)}`);
+      const numLine = numbers.length ? ` <b>${numbers.join(' &middot; ')}</b>` : '';
+      // The record persists on the desk's in-brief card.
+      if (outcome !== undefined) {
+        newsData.push({ me: true, para: '', line: `${txt.head} &mdash; ${outcome}${numLine}` });
+      }
+      if (outcome === undefined) { div.remove(); renderAdmissions(); return; }
+      div.querySelector('.extra-body').innerHTML = `<p class="news-own">${outcome}${numLine}</p>`;
+      div.querySelector('.choice-btns').innerHTML = `<button class="btn oxblood" id="chRead">Read on</button>`;
+      div.querySelector('#chRead').addEventListener('click', () => { div.remove(); renderAdmissions(); });
+    };
+    div.querySelector('#chAccept').addEventListener('click', () => resolve(true));
+    div.querySelector('#chDecline').addEventListener('click', () => resolve(false));
   }
 
   /* In-brief recap on the desk: one line per event, so the record persists
@@ -213,6 +404,7 @@
   }
 
   function leagueTableHtml(table, opts = {}) {
+    const hasReckon = table.some(r => r.reckon !== undefined);
     const rows = table.map(r => {
       const me = game && r.index === game.playerIndex;
       let delta = '';
@@ -230,15 +422,16 @@
         <td class="num">${n1(r.RS)}${dg('RS')}</td><td class="num">${n1(r.TS)}${dg('TS')}</td>
         <td class="num">${n1(r.RH)}${dg('RH')}</td><td class="num">${n1(r.TH)}${dg('TH')}</td>
         <td class="num total">${n1(r.total)}</td>
+        ${hasReckon ? `<td class="num">+${n1(r.reckon)}</td><td class="num total">${n1(r.grand)}</td>` : ''}
         <td>${delta}</td>
       </tr>`;
     }).join('');
     return `<div class="scrollx"><table class="league">
       ${opts.caption ? `<caption>${opts.caption}</caption>` : ''}
-      <thead><tr><th>#</th><th>Institution</th><th>R<sub>S</sub></th><th>T<sub>S</sub></th><th>R<sub>H</sub></th><th>T<sub>H</sub></th><th>Total</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Institution</th><th>R<sub>S</sub></th><th>T<sub>S</sub></th><th>R<sub>H</sub></th><th>T<sub>H</sub></th><th>Total</th>${hasReckon ? '<th>Reckoning</th><th>Grand</th>' : ''}<th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
-    <div class="tbl-foot">Research (R) and Teaching (T) quality by field, as assessed by the Ledger. Rank by total; ties broken by matters the Ledger does not discuss.${opts.daggers ? ' <sup class="dag">&dagger;</sup>&nbsp;revised overnight; see the morning&rsquo;s extra.' : ''}</div>`;
+    <div class="tbl-foot">Research (R) and Teaching (T) quality by field, as assessed by the Ledger. Rank by ${hasReckon ? 'grand total' : 'total'}; ties broken by matters the Ledger does not discuss.${hasReckon ? ` The Founders&rsquo; Reckoning credits 1 point per ${money(P.reckonPerPoint)} of endowment remaining, to a limit of ${P.reckonCapPoints} &mdash; beyond that, the auditors regard cash as evidence of a want of imagination.` : ''}${opts.daggers ? ' <sup class="dag">&dagger;</sup>&nbsp;revised overnight; see the morning&rsquo;s extra.' : ''}</div>`;
   }
 
   /* --------------------------- title screen ---------------------------- */
@@ -291,12 +484,15 @@
             <li><b>Capacity.</b> Each department teaches up to <b>8</b> students at no extra cost. You must take everyone who accepts your offer; each student beyond 8 costs <b>${money(P.cOver)}</b> in emergency provision. Over-offering is the classic way to die.</li>
             <li><b>Money.</b> Fees are paid up front &mdash; the year&rsquo;s income sits in the endowment before the Bursar spends a penny, and whatever he does not spend earns ${Math.round(P.interest * 100)}% interest, fees included. If your endowment cannot cover the year&rsquo;s seats bill, the College is bankrupt and the game ends.</li>
             <li><b>Quality.</b> Investment raises quality with diminishing returns, and takes effect the following year. All quality decays ${Math.round((1 - P.delta) * 100)}% a year if unattended. Teaching quality also drifts with the calibre of the students you actually admit, relative to the national average of ${P.sMean}.</li>
+            <li><b>Merit scholarships.</b> In either world you may endow an annual scholarship fund per field. It raises your appeal &mdash; but only to students scoring ${P.schBar} or better, only with diminishing returns, and it is spent in full whether any of them comes. The only price competition the Scheme permits; in the Market, a way to buy calibre instead of volume.</li>
+            <li><b>The post.</b> Some mornings the Ledger&rsquo;s courier brings the College a proposition &mdash; a restless professor at a rival house, a donor with conditions, an insurer with a barometer. You alone receive these; the odds and sums are printed on the card, and the arithmetic is your business. Ignored post resolves itself, not always kindly.</li>
             <li><b>Fashion.</b> Field preferences drift slowly toward whichever field boasts higher research quality across the sector.</li>
             <li><b>Information.</b> The League table is public. Rivals&rsquo; fees, thresholds, enrolments and endowments are not. The Ledger publishes no figures on family means &mdash; though a shrewd reader may suspect that money and marks travel together, and your own books reveal, year by year, who could afford you.</li>
-            <li><b>The end.</b> After ${P.rounds} years the final League is printed. Score = starting rank &minus; final rank.</li>
+            <li><b>The end &mdash; the Founders&rsquo; Reckoning.</b> After ${P.rounds} years the final League is printed, and endowments finally count: each house is credited 1 league point per ${money(P.reckonPerPoint)} still in its coffers, to a limit of ${P.reckonCapPoints} points. Money is never worthless &mdash; least of all the incumbents&rsquo; hoards. Score = starting rank &minus; final rank.</li>
           </ul>
         </div>
       </details>
+      <div class="footer-note">Determined readers note: add <b>?seed=1234</b> to the address and the Ledger reprints the identical twenty years &mdash; same students, same news, same luck. Practice, in other words, is available.</div>
       <div class="footer-note">The Morning Ledger University Guide &middot; entirely fictional &middot; one file</div>
       <div class="footer-note sig"><a href="https://steffenhuck.github.io">steffen huck</a></div>
     `);
@@ -341,8 +537,8 @@
     prevRanks = null;
     const o = OPENING[chosenWorld][idx];
     dec = chosenWorld === 'scheme'
-      ? { qS: o.q, thrS: o.thr, qH: o.q, thrH: o.thr }
-      : { feeS: o.fee, thrS: o.thr, feeH: o.fee, thrH: o.thr };
+      ? { qS: o.q, thrS: o.thr, qH: o.q, thrH: o.thr, schS: 0, schH: 0 }
+      : { feeS: o.fee, thrS: o.thr, feeH: o.fee, thrH: o.thr, schS: 0, schH: 0 };
     nextYear();
   }
 
@@ -351,7 +547,11 @@
     rep = null;
     buildNews();
     renderAdmissions();
-    if (newsData.length) showExtra(); // desk is already rendered beneath
+    // Morning order: the news extra first, then the post (a choice card,
+    // if one came); the desk lies rendered beneath and is re-rendered
+    // after a card resolves, since cards move money and quality.
+    if (newsData.length) showExtra(pre.choice ? showChoiceCard : null);
+    else if (pre.choice) showChoiceCard();
   }
 
   /* ------------------------- my college card --------------------------- */
@@ -442,6 +642,14 @@
             ? `Last year: <b class="num">${last.applied}</b> proposed &middot; placed <b class="num">${last.matric}</b> of <b class="num">${last.offers}</b> seats${last.cutoff != null ? ` &middot; cutoff <b class="num">${n1(last.cutoff)}</b>` : ''}${last.matric < last.offers ? ` <b class="red">(${last.offers - last.matric} empty)</b>` : ''}`
             : `Last year: <b class="num">${last.applied}</b> applied &middot; <b class="num">${last.offers}</b> offers out &middot; <b class="num">${last.matric}</b> enrolled${last.matric > P.capacity ? ` <b class="red">(${last.matric - P.capacity} over capacity)</b>` : ''}`)
         : 'No demand history yet.';
+      const schCtl = `<div class="ctl">
+          <span class="lbl">Merit scholarships (annual fund)</span>
+          <div class="stepper" data-kind="sch" data-f="${f}">
+            <button data-d="-5">&#171;</button><button data-d="-1">&minus;</button>
+            <span class="val num" id="sch${f}">${money(dec['sch' + f])}</span>
+            <button data-d="1">+</button><button data-d="5">&#187;</button>
+          </div>
+        </div>`;
       return `<div class="fieldbox">
         <h4>${FIELD_NAME[f]}</h4>
         <div class="ctl">
@@ -453,6 +661,7 @@
           </div>
         </div>
         ${secondCtl}
+        ${schCtl}
         <div class="demandline">${demand}</div>
       </div>`;
     };
@@ -477,6 +686,9 @@
               <div class="notice warn">${scheme
                 ? `The Scheme&rsquo;s algorithm assigns each student to the best-ranked department that will hold them; your quota is never exceeded. The rent &mdash; ${money(P.seatRent)} on each of your ${P.capacity * 2} seats &mdash; falls due regardless: seats the match does not fill are pure loss, and the quota costs nothing to report.`
                 : `Capacity is ${P.capacity} per department, and each seat costs ${money(P.seatRent)} a year, filled or not. Every offer that is accepted must be honoured; each enrolee beyond ${P.capacity} costs ${money(P.cOver)}. Applicants who can afford you and clear your threshold get an offer &mdash; all of them.`}</div>
+              <div class="notice">${scheme
+                ? `<b>How the match reads their minds.</b> Each student ranks the four houses by teaching quality plus their personal taste for research. A merit fund of &pound;F adds ${n1(P.schAlpha)}&middot;&radic;F to your appeal, but only for students scoring ${P.schBar} or better &mdash; and the fund is spent in full whether any of them comes. Your calibre cutoff shows where your appeal ran out.`
+                : `<b>How applicants choose.</b> They apply wherever the fee is within their means, and enrol where teaching quality plus their personal taste for research looks best: fees decide who <i>can</i> come, quality decides who <i>does</i>. A merit fund of &pound;F adds ${n1(P.schAlpha)}&middot;&radic;F to your appeal for students scoring ${P.schBar} or better, and is spent in full whether any of them comes.${(!scheme && u.lastReport && (u.lastReport.S.offers + u.lastReport.H.offers) > 0) ? ` Last year <b class="num">${Math.round(100 * (u.lastReport.S.matric + u.lastReport.H.matric) / (u.lastReport.S.offers + u.lastReport.H.offers))}%</b> of your offers were taken up; the rest enrolled where they liked it better.` : ''}`}</div>
               <button class="btn oxblood" id="post">${scheme ? 'File the return with the Scheme' : 'Post the prospectus &amp; make offers'}</button>
             </div>
           </section>
@@ -494,6 +706,9 @@
       } else if (box.dataset.kind === 'q') {
         dec['q' + f] = Math.max(0, Math.min(P.capacity, Math.round(dec['q' + f] + d)));
         el('#q' + f).textContent = dec['q' + f];
+      } else if (box.dataset.kind === 'sch') {
+        dec['sch' + f] = Math.max(0, Math.min(P.schMax, Math.round(dec['sch' + f] + d)));
+        el('#sch' + f).textContent = money(dec['sch' + f]);
       } else {
         dec['fee' + f] = Math.max(0, Math.min(P.feeCap, Math.round((dec['fee' + f] + d) * 2) / 2));
         el('#fee' + f).textContent = money(dec['fee' + f]);
@@ -545,7 +760,8 @@
                 <thead><tr><th>Field</th><th>${inScheme() ? 'Proposals' : 'Applied'}</th><th>${inScheme() ? 'Seats' : 'Offers'}</th><th>${inScheme() ? 'Placed' : 'Enrolled'}</th><th>Avg</th><th>Fees</th><th>Seats bill</th></tr></thead>
                 <tbody>
                   ${reportRow('S')}${reportRow('H')}
-                  <tr class="sumrow"><td>Net of the seats bill</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
+                  ${rep.sch > 0 ? `<tr><td>Scholarship fund</td><td colspan="5"></td><td class="num red">&minus;${money(rep.sch)}</td></tr>` : ''}
+                  <tr class="sumrow"><td>Net of the year&rsquo;s bills</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
                 </tbody>
               </table></div>
               <div class="notice">${intakeRemark()}</div>
@@ -556,8 +772,8 @@
           <section class="card bursar">
             <div class="card-head"><span>Step II &mdash; The Bursar&rsquo;s Office</span><span class="kicker">investment</span></div>
             <div class="card-body">
-              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C > 0 ? ` &minus; seats bill ${money(rep.C)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
-              <div class="budgetline" style="border-top:1px dotted var(--rule)"><span>Uncommitted (earns ${Math.round(P.interest * 100)}%, fees included)</span><b class="num" id="remain">${money(budget)}</b></div>
+              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C - rep.sch > 0 ? ` &minus; seats bill ${money(rep.C - rep.sch)}` : ''}${rep.sch > 0 ? ` &minus; scholarships ${money(rep.sch)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
+              <div class="budgetline" style="border-top:1px dotted var(--rule)"><span>Uncommitted (earns ${Math.round(P.interest * 100)}%, fees included, and counts at the Founders&rsquo; Reckoning: 1 league point per ${money(P.reckonPerPoint)} held at the end, to a limit of ${P.reckonCapPoints})</span><b class="num" id="remain">${money(budget)}</b></div>
               ${invRow('IRS', 'Research', 'STEM')}
               ${invRow('ITS', 'Teaching', 'STEM', true)}
               ${invRow('IRH', 'Research', 'HSS')}
@@ -672,7 +888,7 @@
     // any of the morning's money news). opening + F - C - I + interest = E.
     const opening = rep.net - rep.F + rep.C;
     const hadMoneyNews = (pre.events || []).some(e => e.index === game.playerIndex && e.deltaE !== undefined);
-    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C > 0 ? `, the seats bill took ${money(rep.C)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
+    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C - rep.sch > 0 ? `, the seats bill took ${money(rep.C - rep.sch)}` : ''}${rep.sch > 0 ? `, the scholarship fund ${money(rep.sch)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
 
     // Rank prose, with variants; name rivals passed or passing.
     const newRankOf = i => newTable.find(r => r.index === i).rank;
