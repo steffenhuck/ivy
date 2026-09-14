@@ -492,7 +492,7 @@
           </ul>
         </div>
       </details>
-      <div class="footer-note">Determined readers note: add <b>?seed=1234</b> to the address and the Ledger reprints the identical twenty years &mdash; same students, same news, same luck. Practice, in other words, is available.</div>
+      <div class="footer-note">Every season is printed under a licence number, shown at the foot of each page &mdash; it is the season&rsquo;s seed. Add <b>?seed=</b> and that number to the address and the Ledger reprints the identical twenty years: same students, same news, same luck. Practice, in other words, is available.</div>
       <div class="footer-note">The Morning Ledger University Guide &middot; entirely fictional &middot; one file</div>
       <div class="footer-note sig"><a href="https://steffenhuck.github.io">steffen huck</a></div>
     `);
@@ -506,8 +506,11 @@
       // otherwise each season is random. The seed in play is printed in
       // the footer either way.
       const seedRaw = new URLSearchParams(location.search).get('seed');
+      // Fresh licences are six digits: long enough for nine hundred
+      // thousand distinct seasons, short enough to copy off a friend's
+      // screen. Any integer pasted into ?seed= still works.
       const seed = seedRaw === null || seedRaw.trim() === ''
-        ? ((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0)
+        ? (100000 + Math.floor(Math.random() * 900000))
         : (parseInt(seedRaw, 10) >>> 0 || 1);
       startGame(idx, seed);
     }));
@@ -695,7 +698,7 @@
           ${myCard()}
         </div>
       </div>
-      <div class="footer-note">Printed under licence &numero; ${game.seed} &middot; The Morning Ledger University Guide</div>
+      <div class="footer-note">Printed under licence &numero; ${game.seed} &mdash; the licence is the seed: <b>?seed=${game.seed}</b> reprints this season &middot; The Morning Ledger University Guide</div>
     `);
     els('.stepper button').forEach(b => b.addEventListener('click', () => {
       const box = b.closest('.stepper');
@@ -789,7 +792,7 @@
           </section>
         </div>
       </div>
-      <div class="footer-note">Printed under licence &numero; ${game.seed} &middot; The Morning Ledger University Guide</div>
+      <div class="footer-note">Printed under licence &numero; ${game.seed} &mdash; the licence is the seed: <b>?seed=${game.seed}</b> reprints this season &middot; The Morning Ledger University Guide</div>
     `);
 
     const project = (key, I) => {
@@ -948,7 +951,7 @@
           </section>
         </div>
       </div>
-      <div class="footer-note">Printed under licence &numero; ${game.seed} &middot; The Morning Ledger University Guide</div>
+      <div class="footer-note">Printed under licence &numero; ${game.seed} &mdash; the licence is the seed: <b>?seed=${game.seed}</b> reprints this season &middot; The Morning Ledger University Guide</div>
     `);
     el('#proceed').addEventListener('click', () => {
       if (done) renderEnd({ finalTable: res.finalTable });
@@ -1087,7 +1090,8 @@
         </section>
       </div>
       <button class="btn" id="again" style="max-width:340px;display:block;margin:22px auto 0">Another twenty years</button>
-      <div class="footer-note">Printed under licence &numero; ${game.seed} &middot; The Morning Ledger University Guide</div>
+      <div class="footer-note" style="margin-top:10px"><a href="?seed=${game.seed}${game.P.world === 'scheme' ? '&amp;world=scheme' : ''}">Reprint this season (licence &numero; ${game.seed}) &mdash; same students, same news, same luck</a></div>
+      <div class="footer-note">Printed under licence &numero; ${game.seed} &mdash; the licence is the seed: <b>?seed=${game.seed}</b> reprints this season &middot; The Morning Ledger University Guide</div>
     `);
     el('#again').addEventListener('click', renderTitle);
   }

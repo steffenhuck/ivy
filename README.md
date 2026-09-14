@@ -7,7 +7,8 @@ Now in its **second edition**, revised after playtest feedback.
 dependencies; the game runs fully offline (a GoatCounter analytics beacon is
 the only external request, and nothing depends on it). An optional `?seed=`
 URL parameter makes a season reproducible — same students, same news, same
-luck — and the seed in play is printed in the footer either way.
+luck — and the seed in play is printed in the footer either way, as the
+season's licence number (fresh seasons draw a six-digit one).
 
 You take over one of four universities — by design, the bottom-ranked
 Greyfriars College — and have twenty academic years to climb The Morning
