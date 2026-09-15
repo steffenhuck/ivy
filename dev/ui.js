@@ -493,6 +493,7 @@
         </div>
       </details>
       <div class="footer-note">Every season is printed under a licence number, shown at the foot of each page &mdash; it is the season&rsquo;s seed. Add <b>?seed=</b> and that number to the address and the Ledger reprints the identical twenty years: same students, same news, same luck. Practice, in other words, is available.</div>
+      <div class="footer-note">playtested by <a class="quiet" href="https://www.hakimov.info">Rustam Hakimov</a>, whom the rules now anticipate</div>
       <div class="footer-note">The Morning Ledger University Guide &middot; entirely fictional &middot; one file</div>
       <div class="footer-note sig"><a href="https://steffenhuck.github.io">steffen huck</a></div>
     `);
