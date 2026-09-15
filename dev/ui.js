@@ -755,9 +755,25 @@
     };
 
     const QKEY = { IRS: 'RS', ITS: 'TS', IRH: 'RH', ITH: 'TH' };
+    // True cost of standing still THIS year: solve
+    //   gamma*sqrt(I) = (1-delta)*Q - kappa*(sbar - sMean)
+    // for the teaching rows — the intake term is realized by the time the
+    // Bursar sits down, so maintenance is dearer after a weak intake and
+    // cheaper after a bright one (floored at zero: students good enough
+    // to outweigh decay maintain the teaching for free). Research has no
+    // intake term. UI-only: the engine's maintInvest (decay-only), which
+    // the scripted players use, is deliberately not this clever.
+    const upkeep = (key) => {
+      const q = u[QKEY[key]];
+      let need = (1 - P.delta) * q;
+      if (key === 'ITS' && rep.S.matric > 0) need -= P.kappa * (rep.S.sbar - P.sMean);
+      if (key === 'ITH' && rep.H.matric > 0) need -= P.kappa * (rep.H.sbar - P.sMean);
+      need /= P.gamma;
+      return need > 0 ? need * need : 0;
+    };
     const invRow = (key, label, field) => `
       <div class="invrow" data-key="${key}">
-        <div class="lbl">${label}<b>${field}</b><span class="upkeep num">upkeep ${money(maintInvest(u[QKEY[key]], P))}</span></div>
+        <div class="lbl">${label}<b>${field}</b><span class="upkeep num">upkeep ${money(upkeep(key))}</span></div>
         <input type="range" min="0" max="${Math.ceil(budget)}" step="0.5" value="0">
         <div class="out"><b class="num amt">${money(0)}</b><span class="proj num"></span></div>
       </div>`;
@@ -838,7 +854,7 @@
     el('#pMaintain').addEventListener('click', () => {
       let left = budget;
       for (const key of ['IRS', 'ITS', 'IRH', 'ITH']) {
-        const want = Math.min(left, maintInvest(u[QKEY[key]], P));
+        const want = Math.min(left, upkeep(key));
         el(`.invrow[data-key=${key}] input`).value = Math.round(want * 2) / 2;
         left -= want;
       }
