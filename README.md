@@ -44,9 +44,14 @@ costs £24k — a term only the market can reach.
   converts to league points — 1 point per £15k, capped at 8, in both worlds.
   Money is never worthless, and the incumbents' hoards finally count
   against a challenger.
-- **Merit scholarships** (both worlds): an annual per-field fund, spent
-  whether anyone comes, that raises your appeal to students scoring 70+
-  with diminishing returns — the only price competition the Scheme permits.
+- **Merit scholarships** (both worlds): per field, you set a stipend per
+  student and the school score that qualifies for it. Every qualifying
+  student who enrols is owed the stipend — the bill settles with the
+  intake, so a generous stipend at a low bar is a road to ruin. In the
+  market the stipend counts toward the fee (merit aid as a targeted price
+  cut to the bright); in the Scheme it makes qualifying students rank you
+  higher — a side payment, the only price competition the Regulator has
+  left.
 - **Choice cards**: some mornings the post brings a dilemma — poach a
   rival's professor, take a donor's conditioned money, insure against the
   storm season, host the congress, hush a scandal. Odds and sums are
@@ -75,7 +80,7 @@ Calibration over 500 seeds from the worst start, per world (full report
 embedded at the top of `index.html`). Market: Sharp finishes 1st in 32% of
 seeds, Sensible improves in 30% and tops rarely (2.0%), static Naive is
 foreclosed on by the rent (99.6% bankrupt), and the reviewer's full-spend
-strategy goes bankrupt in 61%. Scheme: Sharp 34.8%, Sensible improves in
+strategy goes bankrupt in 61%. Scheme: Sharp 33.4%, Sensible improves in
 43% and never tops in 500 seeds, the full-spend strategy tops 9.8%, and
 static Naive survives a third of seeds but now tops only 2% — where there
 is no price there is still no selection; the clearing house keeps the

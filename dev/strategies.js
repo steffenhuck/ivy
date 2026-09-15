@@ -293,15 +293,18 @@ function sharpScheme(P) {
           st.thr[f] = clamp(st.thr[f], 30, 72);
         }
       }
-      // Merit pots ONLY in a genuine summit fight: second place, the
+      // Merit stipends ONLY in a genuine summit fight: second place, the
       // leader within bonus-reach, and cash to spare. From further down a
       // stipend flatters nobody — the bright student's next-best option
-      // is simply better than you, pot or no pot.
+      // is simply better than you, stipend or no stipend. The bar sits
+      // high (80): the point is to flip the handful of stars at the
+      // margin, and the bill — stipend times whoever qualifies and comes
+      // — stays bounded by design.
       const fighting = me.rank === 2 && gapUp < 18 && pre.E > 40;
-      const pot = fighting ? Math.min(8, P.schMax) : 0;
+      const sch = fighting ? Math.min(8, P.schMax) : 0;
       return {
         qS: P.capacity, thrS: st.thr.S, qH: P.capacity, thrH: st.thr.H,
-        schS: pot, schH: pot,
+        schS: sch, schH: sch, barS: 80, barH: 80,
       };
     },
     spend(pre, rep, uni) {
@@ -375,18 +378,18 @@ function rustamScheme(P) {
   };
 }
 
-/* PROBE (both worlds): the SCHOLAR — tests whether the merit scholarship
- * pot can simply buy the league. Sensible-style admissions, but a heavy
- * standing pot in both fields every year plus high thresholds to harvest
- * the calibre it attracts (kappa feeds teaching). If scholarships are
- * calibrated right this improves on sensible without beating sharp. */
+/* PROBE (both worlds): the SCHOLAR — tests whether merit stipends can
+ * simply buy the league. Sensible-style admissions, but a generous
+ * stipend at a LOW bar in both fields every year: nearly every
+ * matriculant qualifies, so the bill scales with the whole intake. If
+ * the instrument is calibrated right this is a road to ruin, not a
+ * strategy — the match takes a generous promise at its word. */
 function scholar(P) {
   const base = sensible(P);
   return {
     admissions() {
       const d = base.admissions();
-      d.thrS = Math.max(d.thrS, 60); d.thrH = Math.max(d.thrH, 60);
-      d.schS = 12; d.schH = 12;
+      d.schS = 10; d.schH = 10; d.barS = 50; d.barH = 50;
       return d;
     },
     spend: (pre, rep, uni) => base.spend(pre, rep, uni),
@@ -397,8 +400,7 @@ function scholarScheme(P) {
   return {
     admissions() {
       const d = base.admissions();
-      d.thrS = Math.max(d.thrS, 60); d.thrH = Math.max(d.thrH, 60);
-      d.schS = 12; d.schH = 12;
+      d.schS = 10; d.schH = 10; d.barS = 50; d.barH = 50;
       return d;
     },
     spend: (pre, rep, uni) => base.spend(pre, rep, uni),

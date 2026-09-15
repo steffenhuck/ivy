@@ -193,7 +193,7 @@
   const inScheme = () => game && game.P.world === 'scheme';
   const WORLD_NAME = { market: 'The Open Market', scheme: 'The National Admissions Scheme' };
   let prevRanks = null;     // last year's ranks by uni index (for arrows)
-  let dec = { feeS: 8, thrS: 55, feeH: 8, thrH: 55, schS: 0, schH: 0 };   // sticky controls
+  let dec = { feeS: 8, thrS: 55, feeH: 8, thrH: 55, schS: 0, schH: 0, barS: 70, barH: 70 };   // sticky controls
   let inv = { IRS: 0, ITS: 0, IRH: 0, ITH: 0 };
 
   /* ------------------------------ helpers ------------------------------ */
@@ -484,7 +484,7 @@
             <li><b>Capacity.</b> Each department teaches up to <b>8</b> students at no extra cost. You must take everyone who accepts your offer; each student beyond 8 costs <b>${money(P.cOver)}</b> in emergency provision. Over-offering is the classic way to die.</li>
             <li><b>Money.</b> Fees are paid up front &mdash; the year&rsquo;s income sits in the endowment before the Bursar spends a penny, and whatever he does not spend earns ${Math.round(P.interest * 100)}% interest, fees included. If your endowment cannot cover the year&rsquo;s seats bill, the College is bankrupt and the game ends.</li>
             <li><b>Quality.</b> Investment raises quality with diminishing returns, and takes effect the following year. All quality decays ${Math.round((1 - P.delta) * 100)}% a year if unattended. Teaching quality also drifts with the calibre of the students you actually admit, relative to the national average of ${P.sMean}.</li>
-            <li><b>Merit scholarships.</b> In either world you may endow an annual scholarship fund per field. It raises your appeal &mdash; but only to students scoring ${P.schBar} or better, only with diminishing returns, and it is spent in full whether any of them comes. The only price competition the Scheme permits; in the Market, a way to buy calibre instead of volume.</li>
+            <li><b>Merit scholarships.</b> In either world you may offer, per field, a stipend per student per year, and set the school score that qualifies for it. Every qualifying student who enrols is owed the stipend &mdash; the bill settles with the intake, so a generous stipend at a low bar is a road to ruin, not a bargain. The stipend works where money works: in the <b>Market</b> it counts toward your fee (the bright need only cover fee&nbsp;&minus;&nbsp;stipend &mdash; merit aid as a targeted price cut), in the <b>Scheme</b> it makes qualifying students rank you higher (cash being cash even where fees are not &mdash; the only price competition the Regulator has left).</li>
             <li><b>The post.</b> Some mornings the Ledger&rsquo;s courier brings the College a proposition &mdash; a restless professor at a rival house, a donor with conditions, an insurer with a barometer. You alone receive these; the odds and sums are printed on the card, and the arithmetic is your business. Ignored post resolves itself, not always kindly.</li>
             <li><b>Fashion.</b> Field preferences drift slowly toward whichever field boasts higher research quality across the sector.</li>
             <li><b>Information.</b> The League table is public. Rivals&rsquo; fees, thresholds, enrolments and endowments are not. The Ledger publishes no figures on family means &mdash; though a shrewd reader may suspect that money and marks travel together, and your own books reveal, year by year, who could afford you.</li>
@@ -540,8 +540,8 @@
     prevRanks = null;
     const o = OPENING[chosenWorld][idx];
     dec = chosenWorld === 'scheme'
-      ? { qS: o.q, thrS: o.thr, qH: o.q, thrH: o.thr, schS: 0, schH: 0 }
-      : { feeS: o.fee, thrS: o.thr, feeH: o.fee, thrH: o.thr, schS: 0, schH: 0 };
+      ? { qS: o.q, thrS: o.thr, qH: o.q, thrH: o.thr, schS: 0, schH: 0, barS: 70, barH: 70 }
+      : { feeS: o.fee, thrS: o.thr, feeH: o.fee, thrH: o.thr, schS: 0, schH: 0, barS: 70, barH: 70 };
     nextYear();
   }
 
@@ -646,10 +646,18 @@
             : `Last year: <b class="num">${last.applied}</b> applied &middot; <b class="num">${last.offers}</b> offers out &middot; <b class="num">${last.matric}</b> enrolled${last.matric > P.capacity ? ` <b class="red">(${last.matric - P.capacity} over capacity)</b>` : ''}`)
         : 'No demand history yet.';
       const schCtl = `<div class="ctl">
-          <span class="lbl">Merit scholarships (annual fund)</span>
+          <span class="lbl">Merit stipend (per student, per year)</span>
           <div class="stepper" data-kind="sch" data-f="${f}">
             <button data-d="-5">&#171;</button><button data-d="-1">&minus;</button>
             <span class="val num" id="sch${f}">${money(dec['sch' + f])}</span>
+            <button data-d="1">+</button><button data-d="5">&#187;</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <span class="lbl">Scholarship bar (score to qualify)</span>
+          <div class="stepper" data-kind="bar" data-f="${f}">
+            <button data-d="-5">&#171;</button><button data-d="-1">&minus;</button>
+            <span class="val num" id="bar${f}">${dec['bar' + f]}</span>
             <button data-d="1">+</button><button data-d="5">&#187;</button>
           </div>
         </div>`;
@@ -690,8 +698,8 @@
                 ? `The Scheme&rsquo;s algorithm assigns each student to the best-ranked department that will hold them; your quota is never exceeded. The rent &mdash; ${money(P.seatRent)} on each of your ${P.capacity * 2} seats &mdash; falls due regardless: seats the match does not fill are pure loss, and the quota costs nothing to report.`
                 : `Capacity is ${P.capacity} per department, and each seat costs ${money(P.seatRent)} a year, filled or not. Every offer that is accepted must be honoured; each enrolee beyond ${P.capacity} costs ${money(P.cOver)}. Applicants who can afford you and clear your threshold get an offer &mdash; all of them.`}</div>
               <div class="notice">${scheme
-                ? `<b>How the match reads their minds.</b> Each student ranks the four houses by teaching quality plus their personal taste for research. A merit fund of &pound;F adds ${n1(P.schAlpha)}&middot;&radic;F to your appeal, but only for students scoring ${P.schBar} or better &mdash; and the fund is spent in full whether any of them comes. Your calibre cutoff shows where your appeal ran out.`
-                : `<b>How applicants choose.</b> They apply wherever the fee is within their means, and enrol where teaching quality plus their personal taste for research looks best: fees decide who <i>can</i> come, quality decides who <i>does</i>. A merit fund of &pound;F adds ${n1(P.schAlpha)}&middot;&radic;F to your appeal for students scoring ${P.schBar} or better, and is spent in full whether any of them comes.${(!scheme && u.lastReport && (u.lastReport.S.offers + u.lastReport.H.offers) > 0) ? ` Last year <b class="num">${Math.round(100 * (u.lastReport.S.matric + u.lastReport.H.matric) / (u.lastReport.S.offers + u.lastReport.H.offers))}%</b> of your offers were taken up; the rest enrolled where they liked it better.` : ''}`}</div>
+                ? `<b>How the match reads their minds.</b> Each student ranks the four houses by teaching quality plus their personal taste for research &mdash; and a student at or above your scholarship bar counts your stipend as ${P.schAlpha === 1 ? 'a point of appeal per &pound;1k' : n1(P.schAlpha) + ' points of appeal per &pound;1k'}, cash being cash even where fees are not. Every qualifying student the match seats is owed the stipend: the bill arrives with the intake, and a generous promise at a low bar will be taken at its word. Your calibre cutoff shows where your appeal ran out.`
+                : `<b>How applicants choose.</b> They apply wherever the fee is within their means &mdash; and for a student at or above your scholarship bar, the stipend counts toward the fee: the bright need only cover fee&nbsp;&minus;&nbsp;stipend. Among offers they enrol where teaching quality plus their personal taste for research looks best; cash sways nobody who already has choices, so the stipend&rsquo;s work is done at the gate. Every qualifying student who enrols is owed the stipend: the bill arrives with the intake.${(u.lastReport && (u.lastReport.S.offers + u.lastReport.H.offers) > 0) ? ` Last year <b class="num">${Math.round(100 * (u.lastReport.S.matric + u.lastReport.H.matric) / (u.lastReport.S.offers + u.lastReport.H.offers))}%</b> of your offers were taken up; the rest enrolled where they liked it better.` : ''}`}</div>
               <button class="btn oxblood" id="post">${scheme ? 'File the return with the Scheme' : 'Post the prospectus &amp; make offers'}</button>
             </div>
           </section>
@@ -712,6 +720,9 @@
       } else if (box.dataset.kind === 'sch') {
         dec['sch' + f] = Math.max(0, Math.min(P.schMax, Math.round(dec['sch' + f] + d)));
         el('#sch' + f).textContent = money(dec['sch' + f]);
+      } else if (box.dataset.kind === 'bar') {
+        dec['bar' + f] = Math.max(P.schBarLo, Math.min(P.schBarHi, Math.round(dec['bar' + f] + d)));
+        el('#bar' + f).textContent = dec['bar' + f];
       } else {
         dec['fee' + f] = Math.max(0, Math.min(P.feeCap, Math.round((dec['fee' + f] + d) * 2) / 2));
         el('#fee' + f).textContent = money(dec['fee' + f]);
@@ -763,7 +774,7 @@
                 <thead><tr><th>Field</th><th>${inScheme() ? 'Proposals' : 'Applied'}</th><th>${inScheme() ? 'Seats' : 'Offers'}</th><th>${inScheme() ? 'Placed' : 'Enrolled'}</th><th>Avg</th><th>Fees</th><th>Seats bill</th></tr></thead>
                 <tbody>
                   ${reportRow('S')}${reportRow('H')}
-                  ${rep.sch > 0 ? `<tr><td>Scholarship fund</td><td colspan="5"></td><td class="num red">&minus;${money(rep.sch)}</td></tr>` : ''}
+                  ${rep.sch > 0 ? `<tr><td>Stipends (${rep.S.schN + rep.H.schN} scholar${rep.S.schN + rep.H.schN === 1 ? '' : 's'})</td><td colspan="5"></td><td class="num red">&minus;${money(rep.sch)}</td></tr>` : ''}
                   <tr class="sumrow"><td>Net of the year&rsquo;s bills</td><td colspan="5"></td><td class="num ${rep.F - rep.C < 0 ? 'red' : 'green'}">${money(rep.F - rep.C)}</td></tr>
                 </tbody>
               </table></div>
@@ -775,7 +786,7 @@
           <section class="card bursar">
             <div class="card-head"><span>Step II &mdash; The Bursar&rsquo;s Office</span><span class="kicker">investment</span></div>
             <div class="card-body">
-              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C - rep.sch > 0 ? ` &minus; seats bill ${money(rep.C - rep.sch)}` : ''}${rep.sch > 0 ? ` &minus; scholarships ${money(rep.sch)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
+              <div class="budgetline decomp"><span>Endowment ${money(rep.net - rep.F + rep.C)} + the year&rsquo;s fees ${money(rep.F)}${rep.C - rep.sch > 0 ? ` &minus; seats bill ${money(rep.C - rep.sch)}` : ''}${rep.sch > 0 ? ` &minus; stipends ${money(rep.sch)}` : ''} = funds at hand</span><b class="num">${money(budget)}</b></div>
               <div class="budgetline" style="border-top:1px dotted var(--rule)"><span>Uncommitted (earns ${Math.round(P.interest * 100)}%, fees included, and counts at the Founders&rsquo; Reckoning: 1 league point per ${money(P.reckonPerPoint)} held at the end, to a limit of ${P.reckonCapPoints})</span><b class="num" id="remain">${money(budget)}</b></div>
               ${invRow('IRS', 'Research', 'STEM')}
               ${invRow('ITS', 'Teaching', 'STEM', true)}
@@ -891,7 +902,7 @@
     // any of the morning's money news). opening + F - C - I + interest = E.
     const opening = rep.net - rep.F + rep.C;
     const hadMoneyNews = (pre.events || []).some(e => e.index === game.playerIndex && e.deltaE !== undefined);
-    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C - rep.sch > 0 ? `, the seats bill took ${money(rep.C - rep.sch)}` : ''}${rep.sch > 0 ? `, the scholarship fund ${money(rep.sch)}` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
+    const moneyProse = `The College opened the year with ${money(opening)}; fees brought ${money(rep.F)}${rep.C - rep.sch > 0 ? `, the seats bill took ${money(rep.C - rep.sch)}` : ''}${rep.sch > 0 ? `, stipends ${money(rep.sch)} (${rep.S.schN + rep.H.schN} scholar${rep.S.schN + rep.H.schN === 1 ? '' : 's'})` : ''}; the Bursar committed ${money(spent)}, and interest added ${money(Math.max(0, interest))}. The endowment stands at <b class="num">${money(u.E)}</b>.${hadMoneyNews ? ' The opening figure includes the year&rsquo;s news.' : ''}`;
 
     // Rank prose, with variants; name rivals passed or passing.
     const newRankOf = i => newTable.find(r => r.index === i).rank;
